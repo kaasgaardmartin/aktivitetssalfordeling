@@ -1,6 +1,8 @@
 import { createAdminClient } from '@/lib/supabase'
 import AdminDashboard from '@/components/admin/AdminDashboard'
 
+export const dynamic = 'force-dynamic'
+
 export default async function AdminPage() {
   const supabase = createAdminClient()
   const [hallerRes, sesongerRes, soknaderRes, ventelisteRes] = await Promise.all([
