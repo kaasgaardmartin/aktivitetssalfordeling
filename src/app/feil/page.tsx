@@ -1,11 +1,12 @@
-export default function FeilPage({ searchParams }: { searchParams: { msg?: string } }) {
+export default async function FeilPage({ searchParams }: { searchParams: Promise<{ msg?: string }> }) {
+  const params = await searchParams
   const meldinger: Record<string, string> = {
     'ingen-token': 'Ingen innloggingslenke funnet.',
     'ugyldig-token': 'Innloggingslenken er ugyldig.',
     'utlopt-token': 'Innloggingslenken har utløpt (gyldig i 7 dager).',
   }
 
-  const melding = meldinger[searchParams.msg ?? ''] ?? 'Noe gikk galt.'
+  const melding = meldinger[params.msg ?? ''] ?? 'Noe gikk galt.'
 
   return (
     <main className="flex min-h-screen items-center justify-center p-4">
