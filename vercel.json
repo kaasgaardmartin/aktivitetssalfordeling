@@ -1,0 +1,11 @@
+{
+  "buildCommand": "next build",
+  "devCommand": "next dev",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "regions": ["arn1"],
+  "env": {
+    "NEXT_PUBLIC_SUPABASE_URL": "https://hybfuhvrasznjhkhuerg.supabase.co",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_GJmb70ZOEczUvnDF_Uv-pw_ZdVImSA2"
+  }
+}
