@@ -32,6 +32,14 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots, s
   const [slotModal, setSlotModal] = useState<any | null>(null)
   const [sending, setSending] = useState(false)
   const [sendResult, setSendResult] = useState<string | null>(null)
+  const [showNySesong, setShowNySesong] = useState(false)
+  const [nySesongForm, setNySesongForm] = useState({ navn: '', frist: '', kopier_fra_sesong_id: '' })
+  const [nySesongLaster, setNySesongLaster] = useState(false)
+  const [nySesongFeil, setNySesongFeil] = useState('')
+  const [showNyHall, setShowNyHall] = useState(false)
+  const [nyHallForm, setNyHallForm] = useState({ navn: '', underlag: '', merknader: '', stengedager: '' })
+  const [nyHallLaster, setNyHallLaster] = useState(false)
+  const [nyHallFeil, setNyHallFeil] = useState('')
 
   const selectedHal = haller.find(h => h.id === selectedHalId)
   const halSlots = slots.filter(s => s.hal_id === selectedHalId)
@@ -78,6 +86,55 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots, s
     setSending(false)
   }
 
+  async function opprettSesong(e: React.FormEvent) {
+    e.preventDefault()
+    setNySesongLaster(true)
+    setNySesongFeil('')
+    const res = await fetch('/api/sesonger', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        navn: nySesongForm.navn,
+        frist: nySesongForm.frist,
+        kopier_fra_sesong_id: nySesongForm.kopier_fra_sesong_id || undefined,
+      }),
+    })
+    if (res.ok) {
+      setShowNySesong(false)
+      setNySesongForm({ navn: '', frist: '', kopier_fra_sesong_id: '' })
+      window.location.reload()
+    } else {
+      const data = await res.json()
+      setNySesongFeil(data.error || 'Noe gikk galt')
+    }
+    setNySesongLaster(false)
+  }
+
+  async function opprettHall(e: React.FormEvent) {
+    e.preventDefault()
+    setNyHallLaster(true)
+    setNyHallFeil('')
+    const res = await fetch('/api/haller', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        navn: nyHallForm.navn,
+        underlag: nyHallForm.underlag || null,
+        merknader: nyHallForm.merknader || null,
+        stengedager: nyHallForm.stengedager || null,
+      }),
+    })
+    if (res.ok) {
+      setShowNyHall(false)
+      setNyHallForm({ navn: '', underlag: '', merknader: '', stengedager: '' })
+      window.location.reload()
+    } else {
+      const data = await res.json()
+      setNyHallFeil(data.error || 'Noe gikk galt')
+    }
+    setNyHallLaster(false)
+  }
+
   const ubesvarteSok = soknader.filter(s => s.status === 'venter').length
 
   return (
@@ -88,14 +145,16 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots, s
           <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-gray-900">
             <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 fill-white"><path d="M8 2L14 6V10L8 14L2 10V6L8 2Z" /></svg>
           </div>
-          <span className="text-sm font-semibold text-gray-900">Oslo kampidrett</span>
+          <span className="text-sm font-semibold text-gray-900">Aktivitetssaler Oslo</span>
           <span className="h-4 w-px bg-gray-200" />
           <span className="rounded bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">Admin</span>
         </div>
         <div className="flex items-center gap-3">
+          <button onClick={() => setShowNySesong(true)} className="btn text-xs">+ Ny sesong</button>
+          <button onClick={() => setShowNyHall(true)} className="btn text-xs">+ Ny hall</button>
           {aktivSesong && (
             <button onClick={sendLinks} disabled={sending} className="btn text-xs">
-              {sending ? 'Sender...' : '✉ Send lenker til klubber'}
+              {sending ? 'Sender...' : 'Send lenker til klubber'}
             </button>
           )}
           {sendResult && <span className="text-xs text-green-600">{sendResult}</span>}
@@ -315,6 +374,90 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots, s
               <button onClick={() => setSlotModal(null)} className="btn-primary">Lagre</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── NY SESONG MODAL ── */}
+      {showNySesong && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <form onSubmit={opprettSesong} className="w-full max-w-sm rounded-2xl bg-white p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="font-semibold text-gray-900">Opprett ny sesong</p>
+              <button type="button" onClick={() => setShowNySesong(false)} className="text-gray-400 text-xl leading-none">×</button>
+            </div>
+            <div>
+              <label className="label mb-1.5">Sesongnavn</label>
+              <input className="input" required placeholder="F.eks. Treningstidsfordeling 2026/2027"
+                value={nySesongForm.navn} onChange={e => setNySesongForm(f => ({ ...f, navn: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label mb-1.5">Svarfrist</label>
+              <input type="date" className="input" required
+                value={nySesongForm.frist} onChange={e => setNySesongForm(f => ({ ...f, frist: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label mb-1.5">Kopier fordeling fra</label>
+              <select className="input"
+                value={nySesongForm.kopier_fra_sesong_id} onChange={e => setNySesongForm(f => ({ ...f, kopier_fra_sesong_id: e.target.value }))}>
+                <option value="">— Ikke kopier (tom sesong) —</option>
+                {sesonger.map(s => (
+                  <option key={s.id} value={s.id}>{s.navn}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-[10px] text-gray-400">Alle tidslots med klubbtildelinger kopieres som utgangspunkt</p>
+            </div>
+            {nySesongFeil && <p className="text-sm text-red-600">{nySesongFeil}</p>}
+            <div className="flex gap-2 justify-end">
+              <button type="button" onClick={() => setShowNySesong(false)} className="btn">Avbryt</button>
+              <button type="submit" disabled={nySesongLaster} className="btn-primary">
+                {nySesongLaster ? 'Oppretter...' : 'Opprett sesong'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ── NY HALL MODAL ── */}
+      {showNyHall && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <form onSubmit={opprettHall} className="w-full max-w-sm rounded-2xl bg-white p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="font-semibold text-gray-900">Legg til hall / aktivitetssal</p>
+              <button type="button" onClick={() => setShowNyHall(false)} className="text-gray-400 text-xl leading-none">×</button>
+            </div>
+            <div>
+              <label className="label mb-1.5">Navn</label>
+              <input className="input" required placeholder="F.eks. Dælenenga brytesal"
+                value={nyHallForm.navn} onChange={e => setNyHallForm(f => ({ ...f, navn: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label mb-1.5">Underlag</label>
+              <select className="input"
+                value={nyHallForm.underlag} onChange={e => setNyHallForm(f => ({ ...f, underlag: e.target.value }))}>
+                <option value="">— Velg underlag —</option>
+                {['Puslematter', 'Brytematter', 'Judomatter', 'Sportsgulv', 'Parkett', 'Kunstdekke', 'Annet'].map(u => (
+                  <option key={u} value={u}>{u}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label mb-1.5">Merknader</label>
+              <input className="input" placeholder="Valgfritt"
+                value={nyHallForm.merknader} onChange={e => setNyHallForm(f => ({ ...f, merknader: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label mb-1.5">Stengedager</label>
+              <input className="input" placeholder="F.eks. helligdager, jul"
+                value={nyHallForm.stengedager} onChange={e => setNyHallForm(f => ({ ...f, stengedager: e.target.value }))} />
+            </div>
+            {nyHallFeil && <p className="text-sm text-red-600">{nyHallFeil}</p>}
+            <div className="flex gap-2 justify-end">
+              <button type="button" onClick={() => setShowNyHall(false)} className="btn">Avbryt</button>
+              <button type="submit" disabled={nyHallLaster} className="btn-primary">
+                {nyHallLaster ? 'Lagrer...' : 'Legg til hall'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

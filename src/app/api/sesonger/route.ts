@@ -13,19 +13,45 @@ export async function GET() {
   return NextResponse.json(data)
 }
 
-// POST /api/sesonger — create new season
+// POST /api/sesonger — create new season, optionally copy slots from previous
 export async function POST(request: NextRequest) {
   const body = await request.json()
   const supabase = createAdminClient()
 
-  const { data, error } = await supabase
+  // Create the new season
+  const { data: sesong, error } = await supabase
     .from('sesonger')
     .insert({ navn: body.navn, frist: body.frist, status: 'utkast' })
     .select()
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data, { status: 201 })
+
+  // Copy slots from previous season if requested
+  if (body.kopier_fra_sesong_id) {
+    const { data: forrigeSlots, error: slotErr } = await supabase
+      .from('tidslots')
+      .select('hal_id, ukedag, fra_kl, til_kl, klubb_id')
+      .eq('sesong_id', body.kopier_fra_sesong_id)
+
+    if (slotErr) return NextResponse.json({ error: slotErr.message }, { status: 500 })
+
+    if (forrigeSlots && forrigeSlots.length > 0) {
+      const nyeSlots = forrigeSlots.map(s => ({
+        hal_id: s.hal_id,
+        ukedag: s.ukedag,
+        fra_kl: s.fra_kl,
+        til_kl: s.til_kl,
+        klubb_id: s.klubb_id,
+        sesong_id: sesong.id,
+      }))
+
+      const { error: insertErr } = await supabase.from('tidslots').insert(nyeSlots)
+      if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 })
+    }
+  }
+
+  return NextResponse.json(sesong, { status: 201 })
 }
 
 // PATCH /api/sesonger — update status or frist

@@ -81,7 +81,7 @@ export default function KlubbOversikt({
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-900">
             <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 fill-white"><path d="M8 2L14 6V10L8 14L2 10V6L8 2Z" /></svg>
           </div>
-          <span className="text-sm font-semibold text-gray-900">Oslo kampidrett</span>
+          <span className="text-sm font-semibold text-gray-900">Aktivitetssaler Oslo</span>
           <span className="h-4 w-px bg-gray-200" />
           <span className="text-sm text-gray-500">{klubb.navn}</span>
         </div>

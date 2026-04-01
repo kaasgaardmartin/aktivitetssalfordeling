@@ -11,7 +11,7 @@ export default function Home() {
           <h1 className="text-2xl font-semibold tracking-tight text-gray-900">
             Aktivitetssalfordeling
           </h1>
-          <p className="mt-2 text-sm text-gray-500">Oslo kampidrett</p>
+          <p className="mt-2 text-sm text-gray-500">Aktivitetssaler Oslo</p>
         </div>
         <div className="card p-6 text-left space-y-4">
           <p className="text-sm text-gray-600 leading-relaxed">

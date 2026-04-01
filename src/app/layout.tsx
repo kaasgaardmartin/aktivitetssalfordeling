@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Aktivitetssalfordeling — Oslo kampidrett',
+  title: 'Aktivitetssalfordeling — Aktivitetssaler Oslo',
   description: 'System for fordeling av treningstid i kampidrettssaler i Oslo',
 }
 

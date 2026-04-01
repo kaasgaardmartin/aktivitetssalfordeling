@@ -18,7 +18,7 @@ export default function AdminLoggInn() {
       <div className="w-full max-w-xs space-y-6">
         <div className="text-center">
           <h1 className="text-xl font-semibold text-gray-900">Admin-innlogging</h1>
-          <p className="mt-1 text-sm text-gray-500">Oslo kampidrett</p>
+          <p className="mt-1 text-sm text-gray-500">Aktivitetssaler Oslo</p>
         </div>
         <form onSubmit={loggInn} className="card p-6 space-y-4">
           <div>
