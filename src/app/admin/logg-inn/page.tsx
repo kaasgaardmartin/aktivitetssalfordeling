@@ -9,13 +9,13 @@ export default function AdminLoggInn() {
   const [feil, setFeil] = useState('')
   const [laster, setLaster] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   async function loggInn(e: React.FormEvent) {
     e.preventDefault()
     setLaster(true)
     setFeil('')
 
+    const supabase = createClient()
     const { error } = await supabase.auth.signInWithPassword({
       email: epost,
       password: passord,
