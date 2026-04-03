@@ -84,3 +84,55 @@ export async function PUT(request: NextRequest) {
 
   return NextResponse.json({ ok: true, bekreftet: upserts.length })
 }
+
+// PATCH /api/svar — admin handles a change request (godkjenn/avslå)
+export async function PATCH(request: NextRequest) {
+  const { createServerClientInstance } = await import('@/lib/supabase')
+  const serverClient = await createServerClientInstance()
+  const { data: { user } } = await serverClient.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Ikke innlogget' }, { status: 401 })
+
+  const adminClient = createAdminClient()
+  const { data: adminRow } = await adminClient.from('admin_brukere').select('id').eq('auth_id', user.id).single()
+  if (!adminRow) return NextResponse.json({ error: 'Ikke admin' }, { status: 403 })
+
+  const body = await request.json()
+  const { id, action } = body as { id: string; action: 'godkjenn' | 'avslaa' }
+  if (!id || !['godkjenn', 'avslaa'].includes(action)) {
+    return NextResponse.json({ error: 'Ugyldig forespørsel' }, { status: 400 })
+  }
+
+  const supabase = createAdminClient()
+
+  if (action === 'godkjenn') {
+    // Fetch the change request
+    const { data: svar, error: svarErr } = await supabase
+      .from('svar')
+      .select('*')
+      .eq('id', id)
+      .single()
+    if (svarErr || !svar) return NextResponse.json({ error: 'Fant ikke svar' }, { status: 404 })
+
+    // Update the time slot with the requested changes
+    const updates: Record<string, string> = {}
+    if (svar.ny_ukedag) updates.ukedag = svar.ny_ukedag
+    if (svar.ny_fra_kl) updates.fra_kl = svar.ny_fra_kl
+    if (svar.ny_til_kl) updates.til_kl = svar.ny_til_kl
+
+    if (Object.keys(updates).length > 0) {
+      const { error: slotErr } = await supabase
+        .from('tidslots')
+        .update(updates)
+        .eq('id', svar.tidslot_id)
+      if (slotErr) return NextResponse.json({ error: slotErr.message }, { status: 500 })
+    }
+
+    // Mark the svar as confirmed (change applied)
+    await supabase.from('svar').update({ handling: 'bekreft' }).eq('id', id)
+  } else {
+    // Reject — just mark as confirmed (keep original slot unchanged)
+    await supabase.from('svar').update({ handling: 'bekreft', ny_ukedag: null, ny_fra_kl: null, ny_til_kl: null, kommentar: null }).eq('id', id)
+  }
+
+  return NextResponse.json({ ok: true })
+}

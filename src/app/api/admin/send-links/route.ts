@@ -68,13 +68,6 @@ export async function POST(request: NextRequest) {
       results.push({ klubb: klubb.navn, ok: true, dev_url: url })
     }
 
-    // Log the send
-    await supabase.from('varsler').insert({
-      klubb_id: klubb.id,
-      type: 'magic_link',
-      epost: klubb.epost,
-      ok: true,
-    })
   }
 
   return NextResponse.json({ sent: results.filter(r => r.ok).length, results })

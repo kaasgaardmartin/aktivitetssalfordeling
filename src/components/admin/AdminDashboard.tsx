@@ -22,14 +22,17 @@ function idrettColor(idrett?: string | null) {
 
 function formatTime(t: string) { return t?.slice(0, 5) ?? '' }
 
-export default function AdminDashboard({ haller, sesonger, aktivSesong, slots, soknader: initialSoknader, venteliste }: {
+export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: initialSlots, soknader: initialSoknader, venteliste, klubber, endringer: initialEndringer }: {
   haller: any[]; sesonger: any[]; aktivSesong: any; slots: any[]
-  soknader: any[]; venteliste: any[]
+  soknader: any[]; venteliste: any[]; klubber: any[]; endringer: any[]
 }) {
-  const [activeTab, setActiveTab] = useState<'haller' | 'soknader' | 'venteliste' | 'klubber'>('haller')
+  const [activeTab, setActiveTab] = useState<'haller' | 'soknader' | 'endringer' | 'venteliste' | 'klubber'>('haller')
   const [selectedHalId, setSelectedHalId] = useState<string | null>(haller[0]?.id ?? null)
   const [soknader, setSoknader] = useState(initialSoknader)
+  const [slots, setSlots] = useState(initialSlots)
   const [slotModal, setSlotModal] = useState<any | null>(null)
+  const [slotModalKlubbId, setSlotModalKlubbId] = useState<string>('')
+  const [slotModalSaving, setSlotModalSaving] = useState(false)
   const [sending, setSending] = useState(false)
   const [sendResult, setSendResult] = useState<string | null>(null)
   const [showNySesong, setShowNySesong] = useState(false)
@@ -40,6 +43,12 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots, s
   const [nyHallForm, setNyHallForm] = useState({ navn: '', underlag: '', merknader: '', stengedager: '' })
   const [nyHallLaster, setNyHallLaster] = useState(false)
   const [nyHallFeil, setNyHallFeil] = useState('')
+  const [showNySlot, setShowNySlot] = useState(false)
+  const [nySlotForm, setNySlotForm] = useState({ ukedag: 'mandag', fra_kl: '16:00', til_kl: '16:30', klubb_id: '' })
+  const [nySlotLaster, setNySlotLaster] = useState(false)
+  const [nySlotFeil, setNySlotFeil] = useState('')
+  const [klubbSearch, setKlubbSearch] = useState('')
+  const [endringer, setEndringer] = useState(initialEndringer)
 
   const selectedHal = haller.find(h => h.id === selectedHalId)
   const halSlots = slots.filter(s => s.hal_id === selectedHalId)
@@ -47,7 +56,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots, s
   // Stats for selected hall
   const totalSlots = halSlots.length
   const ledige = halSlots.filter(s => !s.klubb_id).length
-  const klubber = new Set(halSlots.filter(s => s.klubb_id).map(s => s.klubb_id)).size
+  const antallKlubber = new Set(halSlots.filter(s => s.klubb_id).map(s => s.klubb_id)).size
 
   // Group soknader by slot
   const sokMap = new Map<string, any[]>()
@@ -70,6 +79,21 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots, s
         if (status === 'godkjent' && approved && s.slot_id === approved.slot_id && s.id !== id) return { ...s, status: 'avslatt' }
         return s
       }).filter(s => s.status === 'venter'))
+    }
+  }
+
+  async function handleEndring(id: string, action: 'godkjenn' | 'avslaa') {
+    const res = await fetch('/api/svar', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, action }),
+    })
+    if (res.ok) {
+      setEndringer(prev => prev.filter(e => e.id !== id))
+      if (action === 'godkjenn') {
+        // Refresh slots to reflect updated time
+        window.location.reload()
+      }
     }
   }
 
@@ -135,7 +159,73 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots, s
     setNyHallLaster(false)
   }
 
+  function openSlotModal(slot: any) {
+    setSlotModal(slot)
+    setSlotModalKlubbId(slot.klubb_id ?? '')
+  }
+
+  async function lagreSlot() {
+    if (!slotModal) return
+    setSlotModalSaving(true)
+    const res = await fetch('/api/tidslots', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: slotModal.id, klubb_id: slotModalKlubbId || null }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      const tildeltKlubb = klubber.find(k => k.id === (slotModalKlubbId || null)) ?? null
+      setSlots(prev => prev.map(s => s.id === slotModal.id ? { ...s, klubb_id: slotModalKlubbId || null, klubber: tildeltKlubb ? { id: tildeltKlubb.id, navn: tildeltKlubb.navn, idrett: tildeltKlubb.idrett } : null } : s))
+      setSlotModal(null)
+    }
+    setSlotModalSaving(false)
+  }
+
+  async function slettSlot() {
+    if (!slotModal || !confirm('Er du sikker på at du vil slette denne tidssloten?')) return
+    const res = await fetch(`/api/tidslots?id=${slotModal.id}`, { method: 'DELETE' })
+    if (res.ok) {
+      setSlots(prev => prev.filter(s => s.id !== slotModal.id))
+      setSlotModal(null)
+    }
+  }
+
+  async function opprettSlot(e: React.FormEvent) {
+    e.preventDefault()
+    if (!selectedHalId || !aktivSesong) return
+    setNySlotLaster(true)
+    setNySlotFeil('')
+    const res = await fetch('/api/tidslots', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        hal_id: selectedHalId,
+        sesong_id: aktivSesong.id,
+        ukedag: nySlotForm.ukedag,
+        fra_kl: nySlotForm.fra_kl,
+        til_kl: nySlotForm.til_kl,
+        klubb_id: nySlotForm.klubb_id || null,
+      }),
+    })
+    if (res.ok) {
+      const [created] = await res.json()
+      const tildeltKlubb = klubber.find(k => k.id === nySlotForm.klubb_id) ?? null
+      setSlots(prev => [...prev, {
+        ...created,
+        haller: { id: selectedHalId, navn: selectedHal?.navn, underlag: selectedHal?.underlag },
+        klubber: tildeltKlubb ? { id: tildeltKlubb.id, navn: tildeltKlubb.navn, idrett: tildeltKlubb.idrett } : null,
+      }])
+      setShowNySlot(false)
+      setNySlotForm({ ukedag: 'mandag', fra_kl: '16:00', til_kl: '16:30', klubb_id: '' })
+    } else {
+      const data = await res.json()
+      setNySlotFeil(data.error || 'Noe gikk galt')
+    }
+    setNySlotLaster(false)
+  }
+
   const ubesvarteSok = soknader.filter(s => s.status === 'venter').length
+  const ubehandledeEndringer = endringer.length
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -166,6 +256,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots, s
         {[
           { id: 'haller', label: 'Halloversikt' },
           { id: 'soknader', label: `Søknader${ubesvarteSok ? ` (${ubesvarteSok})` : ''}` },
+          { id: 'endringer', label: `Endringer${ubehandledeEndringer ? ` (${ubehandledeEndringer})` : ''}` },
           { id: 'venteliste', label: 'Venteliste' },
           { id: 'klubber', label: 'Klubber' },
         ].map(tab => (
@@ -210,7 +301,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots, s
                       {selectedHal.stengedager && <span className="badge bg-amber-50 text-amber-600">Stengt: {selectedHal.stengedager}</span>}
                     </div>
                   </div>
-                  <button className="btn text-xs">+ Legg til slot</button>
+                  <button onClick={() => setShowNySlot(true)} className="btn text-xs">+ Legg til slot</button>
                 </div>
 
                 {/* Stats */}
@@ -218,7 +309,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots, s
                   {[
                     { val: `${(totalSlots * 0.5).toFixed(0)}t`, lbl: 'Tildelt/uke' },
                     { val: `${(ledige * 0.5).toFixed(0)}t`, lbl: 'Ledig/uke' },
-                    { val: klubber, lbl: 'Klubber' },
+                    { val: antallKlubber, lbl: 'Klubber' },
                     { val: sokMap.size, lbl: 'Søknader' },
                   ].map(s => (
                     <div key={s.lbl} className="card px-3 py-2.5">
@@ -244,7 +335,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots, s
                           const slot = halSlots.find(s => s.ukedag === dag && formatTime(s.fra_kl) === time)
                           return (
                             <div key={dag}
-                              onClick={() => slot && setSlotModal(slot)}
+                              onClick={() => slot && openSlotModal(slot)}
                               className={`h-9 border-b border-r border-gray-100 last:border-r-0 cursor-pointer transition-colors ${slot?.klubb_id ? idrettColor(slot.klubber?.idrett) + ' hover:opacity-80' : 'hover:bg-green-50'}`}>
                               {slot?.klubb_id && (
                                 <div className="flex h-full items-center px-1.5 overflow-hidden">
@@ -328,6 +419,58 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots, s
         </div>
       )}
 
+      {/* ── ENDRINGER ── */}
+      {activeTab === 'endringer' && (
+        <div className="mx-auto max-w-2xl px-4 py-5 space-y-4">
+          {endringer.length === 0 ? (
+            <p className="text-center text-sm text-gray-400 py-12">Ingen endringsforespørsler å behandle</p>
+          ) : endringer.map((e: any) => (
+            <div key={e.id} className="card overflow-hidden">
+              <div className="border-b border-gray-100 px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-semibold ${idrettColor(e.klubber?.idrett)}`}>
+                    {e.klubber?.navn?.split(' ').map((w: string) => w[0]).slice(0, 2).join('')}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">{e.klubber?.navn}</p>
+                    <p className="text-[10px] text-gray-400">Sendt {new Date(e.tidsstempel).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="px-4 py-3 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg bg-gray-50 px-3 py-2">
+                    <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Nåværende tid</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {e.tidslots?.haller?.navn}
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      {e.tidslots?.ukedag?.charAt(0).toUpperCase() + e.tidslots?.ukedag?.slice(1)} {formatTime(e.tidslots?.fra_kl)}–{formatTime(e.tidslots?.til_kl)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-blue-50 px-3 py-2">
+                    <p className="text-[10px] uppercase tracking-wider text-blue-400 mb-1">Ønsket endring</p>
+                    <p className="text-sm font-medium text-blue-900">
+                      {e.ny_ukedag ? e.ny_ukedag.charAt(0).toUpperCase() + e.ny_ukedag.slice(1) : e.tidslots?.ukedag?.charAt(0).toUpperCase() + e.tidslots?.ukedag?.slice(1)}
+                    </p>
+                    <p className="text-xs text-blue-700">
+                      {formatTime(e.ny_fra_kl || e.tidslots?.fra_kl)}–{formatTime(e.ny_til_kl || e.tidslots?.til_kl)}
+                    </p>
+                  </div>
+                </div>
+                {e.kommentar && (
+                  <p className="text-xs italic text-gray-500 bg-gray-50 rounded px-2 py-1">«{e.kommentar}»</p>
+                )}
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => handleEndring(e.id, 'avslaa')} className="btn btn-danger text-xs px-3 py-1.5">Avslå</button>
+                  <button onClick={() => handleEndring(e.id, 'godkjenn')} className="btn-primary text-xs px-3 py-1.5">Godkjenn endring</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* ── VENTELISTE ── */}
       {activeTab === 'venteliste' && (
         <div className="mx-auto max-w-2xl px-4 py-5 space-y-3">
@@ -352,10 +495,69 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots, s
         </div>
       )}
 
-      {/* ── SLOT MODAL ── */}
+      {/* ── KLUBBER ── */}
+      {activeTab === 'klubber' && (
+        <div className="mx-auto max-w-3xl px-4 py-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-900">Registrerte klubber</h2>
+            <input type="text" placeholder="Søk klubb..." className="input w-56 text-xs" value={klubbSearch} onChange={e => setKlubbSearch(e.target.value)} />
+          </div>
+          {klubber.length === 0 ? (
+            <p className="text-center text-sm text-gray-400 py-12">Ingen klubber registrert</p>
+          ) : (
+            <div className="card overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50 text-left">
+                    <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Klubb</th>
+                    <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Idrett</th>
+                    <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500 text-right">Medlemmer</th>
+                    <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500 text-right">Andel barn</th>
+                    <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500 text-right">Timer/uke</th>
+                    <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">E-post</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {klubber
+                    .filter(k => !klubbSearch || k.navn.toLowerCase().includes(klubbSearch.toLowerCase()) || (k.idrett ?? '').toLowerCase().includes(klubbSearch.toLowerCase()))
+                    .map(k => {
+                      const klubbSlots = slots.filter(s => s.klubb_id === k.id)
+                      const timerPerUke = (klubbSlots.length * 0.5)
+                      return (
+                        <tr key={k.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                          <td className="px-4 py-2.5">
+                            <div className="flex items-center gap-2.5">
+                              <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[10px] font-semibold ${idrettColor(k.idrett)}`}>
+                                {k.navn.split(' ').map((w: string) => w[0]).slice(0, 2).join('')}
+                              </div>
+                              <span className="font-medium text-gray-900 text-xs">{k.navn}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            {k.idrett && <span className={`badge text-[10px] ${idrettColor(k.idrett)}`}>{k.idrett}</span>}
+                          </td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-xs text-gray-700">{k.medlemstall ?? '–'}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-xs text-gray-700">{k.andel_barn != null ? `${k.andel_barn}%` : '–'}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-xs font-semibold text-gray-900">{timerPerUke > 0 ? `${timerPerUke}t` : '–'}</td>
+                          <td className="px-4 py-2.5 text-xs text-gray-500 truncate max-w-[180px]">{k.epost}</td>
+                        </tr>
+                      )
+                    })}
+                </tbody>
+              </table>
+              <div className="border-t border-gray-100 bg-gray-50 px-4 py-2.5 flex items-center justify-between">
+                <span className="text-[10px] text-gray-400">{klubber.length} klubber totalt</span>
+                <span className="text-[10px] text-gray-400">{(slots.filter(s => s.klubb_id).length * 0.5).toFixed(0)}t tildelt totalt</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── SLOT MODAL (Rediger) ── */}
       {slotModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-4" onClick={() => setSlotModal(null)}>
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 space-y-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <p className="font-semibold text-gray-900">Rediger slot</p>
               <button onClick={() => setSlotModal(null)} className="text-gray-400 text-xl leading-none">×</button>
@@ -365,15 +567,70 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots, s
             </p>
             <div>
               <label className="label mb-1.5">Tildelt klubb</label>
-              <select className="input">
+              <select className="input" value={slotModalKlubbId} onChange={e => setSlotModalKlubbId(e.target.value)}>
                 <option value="">— Ledig —</option>
+                {klubber.map(k => (
+                  <option key={k.id} value={k.id}>{k.navn}{k.idrett ? ` (${k.idrett})` : ''}</option>
+                ))}
               </select>
             </div>
-            <div className="flex gap-2 justify-end">
-              <button onClick={() => setSlotModal(null)} className="btn">Avbryt</button>
-              <button onClick={() => setSlotModal(null)} className="btn-primary">Lagre</button>
+            <div className="flex gap-2 justify-between">
+              <button onClick={slettSlot} className="btn btn-danger text-xs px-3">Slett slot</button>
+              <div className="flex gap-2">
+                <button onClick={() => setSlotModal(null)} className="btn">Avbryt</button>
+                <button onClick={lagreSlot} disabled={slotModalSaving} className="btn-primary">
+                  {slotModalSaving ? 'Lagrer...' : 'Lagre'}
+                </button>
+              </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── NY SLOT MODAL ── */}
+      {showNySlot && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setShowNySlot(false)}>
+          <form onSubmit={opprettSlot} className="w-full max-w-sm rounded-2xl bg-white p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <p className="font-semibold text-gray-900">Legg til tidslot</p>
+              <button type="button" onClick={() => setShowNySlot(false)} className="text-gray-400 text-xl leading-none">×</button>
+            </div>
+            <p className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">{selectedHal?.navn}</p>
+            <div>
+              <label className="label mb-1.5">Ukedag</label>
+              <select className="input" required value={nySlotForm.ukedag} onChange={e => setNySlotForm(f => ({ ...f, ukedag: e.target.value }))}>
+                {UKEDAG_ORDER.map(d => (
+                  <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label mb-1.5">Fra kl.</label>
+                <input type="time" className="input" required value={nySlotForm.fra_kl} onChange={e => setNySlotForm(f => ({ ...f, fra_kl: e.target.value }))} />
+              </div>
+              <div>
+                <label className="label mb-1.5">Til kl.</label>
+                <input type="time" className="input" required value={nySlotForm.til_kl} onChange={e => setNySlotForm(f => ({ ...f, til_kl: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <label className="label mb-1.5">Tildel klubb (valgfritt)</label>
+              <select className="input" value={nySlotForm.klubb_id} onChange={e => setNySlotForm(f => ({ ...f, klubb_id: e.target.value }))}>
+                <option value="">— Ledig —</option>
+                {klubber.map(k => (
+                  <option key={k.id} value={k.id}>{k.navn}{k.idrett ? ` (${k.idrett})` : ''}</option>
+                ))}
+              </select>
+            </div>
+            {nySlotFeil && <p className="text-sm text-red-600">{nySlotFeil}</p>}
+            <div className="flex gap-2 justify-end">
+              <button type="button" onClick={() => setShowNySlot(false)} className="btn">Avbryt</button>
+              <button type="submit" disabled={nySlotLaster} className="btn-primary">
+                {nySlotLaster ? 'Lagrer...' : 'Legg til'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 

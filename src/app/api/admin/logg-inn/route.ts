@@ -1,35 +1,33 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
+import { NextResponse } from 'next/server'
+import { createServerClientInstance, createAdminClient } from '@/lib/supabase'
 
-// Simple password-based admin auth.
-// Replace with Supabase Auth + admin role for production.
-export async function POST(request: NextRequest) {
-  const body = await request.json()
-  const { passord } = body
+// POST /api/admin/logg-inn — verify that the logged-in user is an admin
+export async function POST() {
+  const supabase = await createServerClientInstance()
+  const { data: { user }, error } = await supabase.auth.getUser()
 
-  const adminPassord = process.env.ADMIN_PASSWORD
-  if (!adminPassord) {
-    return NextResponse.json({ error: 'ADMIN_PASSWORD ikke satt i miljøvariabler' }, { status: 500 })
+  if (error || !user) {
+    return NextResponse.json({ error: 'Ikke innlogget' }, { status: 401 })
   }
 
-  if (passord !== adminPassord) {
-    return NextResponse.json({ error: 'Feil passord' }, { status: 401 })
-  }
+  // Check admin_brukere table
+  const admin = createAdminClient()
+  const { data: adminRow } = await admin
+    .from('admin_brukere')
+    .select('id')
+    .eq('auth_id', user.id)
+    .single()
 
-  const cookieStore = await cookies()
-  cookieStore.set('admin_session', 'authenticated', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 8, // 8 hours
-    path: '/',
-  })
+  if (!adminRow) {
+    return NextResponse.json({ error: 'Ikke admin' }, { status: 403 })
+  }
 
   return NextResponse.json({ ok: true })
 }
 
+// DELETE /api/admin/logg-inn — sign out
 export async function DELETE() {
-  const cookieStore = await cookies()
-  cookieStore.delete('admin_session')
+  const supabase = await createServerClientInstance()
+  await supabase.auth.signOut()
   return NextResponse.json({ ok: true })
 }

@@ -137,6 +137,16 @@ export interface Database {
         Insert: Omit<Database['public']['Tables']['venteliste']['Row'], 'id'>
         Update: Partial<Database['public']['Tables']['venteliste']['Insert']>
       }
+      admin_brukere: {
+        Row: {
+          id: string
+          auth_id: string
+          rolle: string
+          opprettet_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['admin_brukere']['Row'], 'id' | 'opprettet_at'>
+        Update: Partial<Database['public']['Tables']['admin_brukere']['Insert']>
+      }
       regler_info: {
         Row: {
           id: string

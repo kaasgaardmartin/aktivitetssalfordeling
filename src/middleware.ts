@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Beskytt /klubb/* - krever klubb_session cookie
@@ -17,10 +18,32 @@ export function middleware(request: NextRequest) {
     } catch { return NextResponse.redirect(new URL('/logg-inn', request.url)) }
   }
 
-  // Beskytt /admin/* UNNTATT /admin/logg-inn
+  // Beskytt /admin/* UNNTATT /admin/logg-inn — krever Supabase Auth-sesjon
   if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/logg-inn')) {
-    const adminSession = request.cookies.get('admin_session')?.value
-    if (!adminSession) return NextResponse.redirect(new URL('/admin/logg-inn', request.url))
+    let response = NextResponse.next({ request })
+
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return request.cookies.getAll() },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              request.cookies.set(name, value)
+              response.cookies.set(name, value, options)
+            })
+          },
+        },
+      }
+    )
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.redirect(new URL('/admin/logg-inn', request.url))
+    }
+
+    return response
   }
 
   return NextResponse.next()

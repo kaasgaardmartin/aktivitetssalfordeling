@@ -1,18 +1,43 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase-browser'
+
 export default function AdminLoggInn() {
+  const [epost, setEpost] = useState('')
   const [passord, setPassord] = useState('')
   const [feil, setFeil] = useState('')
   const [laster, setLaster] = useState(false)
   const router = useRouter()
+  const supabase = createClient()
+
   async function loggInn(e: React.FormEvent) {
     e.preventDefault()
-    setLaster(true); setFeil('')
-    const res = await fetch('/api/admin/logg-inn', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ passord }) })
-    if (res.ok) { router.push('/admin') }
-    else { setFeil('Feil passord'); setLaster(false) }
+    setLaster(true)
+    setFeil('')
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: epost,
+      password: passord,
+    })
+
+    if (error) {
+      setFeil('Feil e-post eller passord')
+      setLaster(false)
+      return
+    }
+
+    // Verify admin status
+    const res = await fetch('/api/admin/logg-inn', { method: 'POST' })
+    if (res.ok) {
+      router.push('/admin')
+    } else {
+      await supabase.auth.signOut()
+      setFeil('Du har ikke admin-tilgang')
+      setLaster(false)
+    }
   }
+
   return (
     <main className="flex min-h-screen items-center justify-center p-4 bg-gray-50">
       <div className="w-full max-w-xs space-y-6">
@@ -22,8 +47,12 @@ export default function AdminLoggInn() {
         </div>
         <form onSubmit={loggInn} className="card p-6 space-y-4">
           <div>
+            <label className="label mb-1.5">E-post</label>
+            <input type="email" className="input" value={epost} onChange={e => setEpost(e.target.value)} placeholder="admin@oslo.kommune.no" required autoFocus />
+          </div>
+          <div>
             <label className="label mb-1.5">Passord</label>
-            <input type="password" className="input" value={passord} onChange={e => setPassord(e.target.value)} placeholder="••••••••" required autoFocus />
+            <input type="password" className="input" value={passord} onChange={e => setPassord(e.target.value)} placeholder="••••••••" required />
           </div>
           {feil && <p className="text-sm text-red-600">{feil}</p>}
           <button type="submit" disabled={laster} className="btn-primary w-full">
