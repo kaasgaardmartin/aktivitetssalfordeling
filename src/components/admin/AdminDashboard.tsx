@@ -326,7 +326,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                     {UKEDAG_ORDER.map(d => (
                       <div key={d} className="border-b border-r border-gray-100 bg-gray-50 px-2 py-2 text-center text-xs font-semibold uppercase tracking-wider text-gray-500 last:border-r-0">{UKEDAG_SHORT[d]}</div>
                     ))}
-                    {['15:00','15:30','16:00','16:30','17:00','17:30','18:00','18:30'].map(time => (
+                    {['15:00','15:30','16:00','16:30','17:00','17:30','18:00','18:30','19:00','19:30','20:00','20:30','21:00','21:30','22:00','22:30'].map(time => (
                       <>
                         <div key={time + '-t'} className="border-b border-r border-gray-100 bg-gray-50 px-2 py-0 flex items-center">
                           <span className="text-[10px] font-mono text-gray-400">{time}</span>
