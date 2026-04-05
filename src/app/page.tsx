@@ -11,13 +11,13 @@ export default function Home() {
           <h1 className="text-2xl font-semibold tracking-tight text-gray-900">
             Aktivitetssalfordeling
           </h1>
-          <p className="mt-2 text-sm text-gray-500">Aktivitetssaler Oslo</p>
+          <p className="mt-2 text-sm text-gray-600">Aktivitetssaler Oslo</p>
         </div>
         <div className="card p-6 text-left space-y-4">
           <p className="text-sm text-gray-600 leading-relaxed">
             Logg inn via lenken du mottok på e-post fra Oslo idrettssekretariat.
           </p>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-600">
             Har du ikke fått lenke? Kontakt{' '}
             <a href="mailto:idrettssekretariatet@oslo.kommune.no" className="text-blue-600 underline">
               idrettssekretariatet
@@ -25,9 +25,9 @@ export default function Home() {
             .
           </p>
         </div>
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-gray-500">
           Administrasjon?{' '}
-          <a href="/admin" className="text-gray-600 underline">
+          <a href="/admin" className="text-gray-700 underline">
             Admin-innlogging
           </a>
         </p>

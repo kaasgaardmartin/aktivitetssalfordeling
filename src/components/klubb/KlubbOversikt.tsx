@@ -83,9 +83,9 @@ export default function KlubbOversikt({
           </div>
           <span className="text-sm font-semibold text-gray-900">Aktivitetssaler Oslo</span>
           <span className="h-4 w-px bg-gray-200" />
-          <span className="text-sm text-gray-500">{klubb.navn}</span>
+          <span className="text-sm text-gray-600">{klubb.navn}</span>
         </div>
-        <span className="text-xs text-gray-400">{klubb.idrett}</span>
+        <span className="text-xs text-gray-600">{klubb.idrett}</span>
       </div>
 
       {/* Nav tabs */}
@@ -97,7 +97,7 @@ export default function KlubbOversikt({
             className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
               activeTab === tab
                 ? 'border-gray-900 text-gray-900'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                : 'border-transparent text-gray-600 hover:text-gray-700'
             }`}
           >
             {tab === 'tider' ? 'Mine tider' : tab === 'sok' ? 'Søk mer tid' : 'Regler og info'}
@@ -115,7 +115,7 @@ export default function KlubbOversikt({
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
                   <p className="text-base font-semibold text-gray-900">{sesong.navn}</p>
-                  <p className="text-sm text-gray-500 mt-0.5">Gjennomgå tidene dine — endre det du ønsker, bekreft resten</p>
+                  <p className="text-sm text-gray-600 mt-0.5">Gjennomgå tidene dine — endre det du ønsker, bekreft resten</p>
                 </div>
                 <span className={`badge whitespace-nowrap ${dagerIgjen < 5 ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
                   Frist: {frist.toLocaleDateString('nb-NO', { day: 'numeric', month: 'long' })}
@@ -143,7 +143,7 @@ export default function KlubbOversikt({
               ].map(s => (
                 <div key={s.lbl} className="card px-4 py-3">
                   <p className="text-2xl font-semibold tabular-nums text-gray-900">{s.val}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{s.lbl}</p>
+                  <p className="text-xs text-gray-600 mt-0.5">{s.lbl}</p>
                 </div>
               ))}
             </div>
@@ -151,14 +151,14 @@ export default function KlubbOversikt({
             {/* Hall cards */}
             {Array.from(hallerMap.values()).map(({ hal, slots: hSlots }) => (
               <div key={hal.id} className="card overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-100">
+                <div className="px-4 py-3 border-b border-gray-200">
                   <p className="font-semibold text-gray-900">{hal.navn}</p>
                   <div className="flex gap-2 mt-1 flex-wrap">
                     {hal.underlag && <span className="badge bg-gray-100 text-gray-600">{hal.underlag}</span>}
                     {hal.stengedager && <span className="badge bg-amber-50 text-amber-700">Stengt: {hal.stengedager}</span>}
                   </div>
                   {hal.merknader && (
-                    <p className="mt-1.5 text-xs text-gray-500">{hal.merknader}</p>
+                    <p className="mt-1.5 text-xs text-gray-600">{hal.merknader}</p>
                   )}
                 </div>
                 <div className="divide-y divide-gray-100">
@@ -169,8 +169,8 @@ export default function KlubbOversikt({
                       return (
                         <div key={slot.id} className="flex items-center gap-3 px-4 py-2.5">
                           <span className="w-20 text-sm font-medium text-gray-900">{formatUkedag(slot.ukedag)}</span>
-                          <span className="w-24 font-mono text-xs text-gray-500">{formatTime(slot.fra_kl)}–{formatTime(slot.til_kl)}</span>
-                          <span className="flex-1 text-sm text-gray-500">{klubb.idrett}</span>
+                          <span className="w-24 font-mono text-xs text-gray-600">{formatTime(slot.fra_kl)}–{formatTime(slot.til_kl)}</span>
+                          <span className="flex-1 text-sm text-gray-600">{klubb.idrett}</span>
                           <div className="flex gap-1.5">
                             {!s || s.handling === 'bekreft' ? (
                               <>
@@ -181,14 +181,14 @@ export default function KlubbOversikt({
                             ) : s.handling === 'endre' ? (
                               <span className="badge bg-blue-50 text-blue-700">Endret</span>
                             ) : (
-                              <span className="badge bg-gray-100 text-gray-500">Sagt opp</span>
+                              <span className="badge bg-gray-100 text-gray-600">Sagt opp</span>
                             )}
                           </div>
                         </div>
                       )
                     })}
                 </div>
-                <div className="flex gap-2 border-t border-gray-100 px-4 py-2.5">
+                <div className="flex gap-2 border-t border-gray-200 px-4 py-2.5">
                   <button onClick={() => setActiveTab('sok')} className="btn text-xs">+ Søk om mer tid</button>
                 </div>
               </div>
@@ -206,7 +206,7 @@ export default function KlubbOversikt({
           <div className="card p-6">
             <p className="font-semibold text-gray-900 mb-1">Regler og retningslinjer</p>
             {regler?.oppdatert_at && (
-              <p className="text-xs text-gray-400 mb-4">
+              <p className="text-xs text-gray-600 mb-4">
                 Sist oppdatert: {new Date(regler.oppdatert_at).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' })}
               </p>
             )}
@@ -223,9 +223,9 @@ export default function KlubbOversikt({
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 space-y-4">
             <div className="flex items-center justify-between">
               <p className="font-semibold text-gray-900">Endre tid</p>
-              <button onClick={() => setChangeModal(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+              <button onClick={() => setChangeModal(null)} className="text-gray-600 hover:text-gray-600 text-xl leading-none">×</button>
             </div>
-            <p className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
+            <p className="text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-2">
               {changeModal.haller?.navn} — {formatUkedag(changeModal.ukedag)} {formatTime(changeModal.fra_kl)}–{formatTime(changeModal.til_kl)}
             </p>
             <div className="space-y-3">
@@ -321,12 +321,12 @@ function SokMerTid({ sesongId }: { sesongId: string }) {
             </button>
           ))}
         </div>
-        <span className="ml-auto text-xs text-gray-400">{filtered.length} ledige</span>
+        <span className="ml-auto text-xs text-gray-600">{filtered.length} ledige</span>
       </div>
 
       {/* Slot list */}
       {filtered.length === 0 ? (
-        <p className="text-center text-sm text-gray-400 py-8">Ingen ledige slots</p>
+        <p className="text-center text-sm text-gray-600 py-8">Ingen ledige slots</p>
       ) : filtered.map((slot: any) => (
         <div key={slot.id}
           onClick={() => setSelected(selected?.id === slot.id ? null : slot)}
@@ -335,11 +335,11 @@ function SokMerTid({ sesongId }: { sesongId: string }) {
             <div>
               <p className="font-semibold text-sm text-gray-900">{slot.haller?.navn}</p>
               <div className="flex gap-2 mt-1">
-                <span className="text-xs font-mono text-gray-500">{slot.ukedag.charAt(0).toUpperCase() + slot.ukedag.slice(1)}  {formatTime(slot.fra_kl)}–{formatTime(slot.til_kl)}</span>
+                <span className="text-xs font-mono text-gray-600">{slot.ukedag.charAt(0).toUpperCase() + slot.ukedag.slice(1)}  {formatTime(slot.fra_kl)}–{formatTime(slot.til_kl)}</span>
                 {slot.haller?.underlag && <span className="badge bg-gray-100 text-gray-600">{slot.haller.underlag}</span>}
               </div>
             </div>
-            <span className={`text-xs font-medium ${selected?.id === slot.id ? 'text-gray-900' : 'text-gray-400'}`}>
+            <span className={`text-xs font-medium ${selected?.id === slot.id ? 'text-gray-900' : 'text-gray-600'}`}>
               {selected?.id === slot.id ? 'Valgt' : 'Velg'}
             </span>
           </div>
@@ -349,9 +349,9 @@ function SokMerTid({ sesongId }: { sesongId: string }) {
       {/* Application form */}
       {selected && !sent && (
         <div className="card overflow-hidden">
-          <div className="bg-gray-50 px-4 py-3 border-b border-gray-100">
+          <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
             <p className="font-semibold text-sm text-gray-900">Send søknad</p>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <p className="text-xs text-gray-600 mt-0.5">
               {selected.haller?.navn} — {selected.ukedag.charAt(0).toUpperCase() + selected.ukedag.slice(1)} {formatTime(selected.fra_kl)}–{formatTime(selected.til_kl)}
             </p>
           </div>

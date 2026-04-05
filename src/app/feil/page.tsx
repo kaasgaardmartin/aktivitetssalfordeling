@@ -10,7 +10,7 @@ export default async function FeilPage({ searchParams }: { searchParams: Promise
     <main className="flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-sm space-y-4 text-center">
         <h1 className="text-lg font-semibold text-gray-900">Kunne ikke logge inn</h1>
-        <p className="text-sm text-gray-500">{melding}</p>
+        <p className="text-sm text-gray-600">{melding}</p>
       </div>
     </main>
   )

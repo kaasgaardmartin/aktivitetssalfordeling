@@ -261,7 +261,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
           { id: 'klubber', label: 'Klubber' },
         ].map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
-            className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors ${activeTab === tab.id ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors ${activeTab === tab.id ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-600 hover:text-gray-700'}`}>
             {tab.label}
           </button>
         ))}
@@ -272,7 +272,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
         <div className="flex h-[calc(100vh-104px)]">
           {/* Sidebar */}
           <div className="w-52 shrink-0 overflow-y-auto border-r border-gray-200 bg-white py-3">
-            <p className="px-4 pb-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Haller og saler</p>
+            <p className="px-4 pb-2 text-[10px] font-semibold uppercase tracking-wider text-gray-600">Haller og saler</p>
             {haller.map(h => {
               const hSlotCount = slots.filter(s => s.hal_id === h.id).length
               const hSok = soknader.filter(s => s.hal_id === h.id).length
@@ -281,7 +281,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                   className={`flex w-full items-center justify-between border-l-2 px-4 py-2 text-left transition-colors hover:bg-gray-50 ${selectedHalId === h.id ? 'border-gray-900 bg-gray-50' : 'border-transparent'}`}>
                   <div>
                     <p className="text-xs font-medium text-gray-900 leading-snug">{h.navn}</p>
-                    <p className="text-[10px] text-gray-400">{hSlotCount} slots</p>
+                    <p className="text-[10px] text-gray-600">{hSlotCount} slots</p>
                   </div>
                   {hSok > 0 && <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">{hSok}</span>}
                 </button>
@@ -314,7 +314,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                   ].map(s => (
                     <div key={s.lbl} className="card px-3 py-2.5">
                       <p className="text-xl font-semibold tabular-nums text-gray-900">{s.val}</p>
-                      <p className="text-[10px] text-gray-500">{s.lbl}</p>
+                      <p className="text-[10px] text-gray-600">{s.lbl}</p>
                     </div>
                   ))}
                 </div>
@@ -322,21 +322,21 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                 {/* Calendar */}
                 <div className="card overflow-hidden">
                   <div className="grid" style={{ gridTemplateColumns: '60px repeat(5, 1fr)' }}>
-                    <div className="border-b border-r border-gray-100 bg-gray-50 p-2" />
+                    <div className="border-b border-r border-gray-200 bg-gray-50 p-2" />
                     {UKEDAG_ORDER.map(d => (
-                      <div key={d} className="border-b border-r border-gray-100 bg-gray-50 px-2 py-2 text-center text-xs font-semibold uppercase tracking-wider text-gray-500 last:border-r-0">{UKEDAG_SHORT[d]}</div>
+                      <div key={d} className="border-b border-r border-gray-200 bg-gray-50 px-2 py-2 text-center text-xs font-semibold uppercase tracking-wider text-gray-600 last:border-r-0">{UKEDAG_SHORT[d]}</div>
                     ))}
                     {['15:00','15:30','16:00','16:30','17:00','17:30','18:00','18:30','19:00','19:30','20:00','20:30','21:00','21:30','22:00','22:30'].map(time => (
                       <>
-                        <div key={time + '-t'} className="border-b border-r border-gray-100 bg-gray-50 px-2 py-0 flex items-center">
-                          <span className="text-[10px] font-mono text-gray-400">{time}</span>
+                        <div key={time + '-t'} className="border-b border-r border-gray-200 bg-gray-50 px-2 py-0 flex items-center">
+                          <span className="text-[10px] font-mono text-gray-600">{time}</span>
                         </div>
                         {UKEDAG_ORDER.map(dag => {
                           const slot = halSlots.find(s => s.ukedag === dag && formatTime(s.fra_kl) === time)
                           return (
                             <div key={dag}
                               onClick={() => slot && openSlotModal(slot)}
-                              className={`h-9 border-b border-r border-gray-100 last:border-r-0 cursor-pointer transition-colors ${slot?.klubb_id ? idrettColor(slot.klubber?.idrett) + ' hover:opacity-80' : 'hover:bg-green-50'}`}>
+                              className={`h-9 border-b border-r border-gray-200 last:border-r-0 cursor-pointer transition-colors ${slot?.klubb_id ? idrettColor(slot.klubber?.idrett) + ' hover:opacity-80' : 'hover:bg-green-50'}`}>
                               {slot?.klubb_id && (
                                 <div className="flex h-full items-center px-1.5 overflow-hidden">
                                   <span className="truncate text-[10px] font-medium">{slot.klubber?.navn?.split(' ')[0]}</span>
@@ -349,14 +349,14 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                     ))}
                   </div>
                   {/* Legend */}
-                  <div className="flex gap-3 flex-wrap border-t border-gray-100 bg-gray-50 px-4 py-2">
+                  <div className="flex gap-3 flex-wrap border-t border-gray-200 bg-gray-50 px-4 py-2">
                     {Object.entries(IDRETT_COLORS).slice(0, 6).map(([k, v]) => (
-                      <span key={k} className="flex items-center gap-1 text-[10px] text-gray-500">
+                      <span key={k} className="flex items-center gap-1 text-[10px] text-gray-600">
                         <span className={`h-2.5 w-2.5 rounded-sm ${v}`} />
                         {k.charAt(0).toUpperCase() + k.slice(1)}
                       </span>
                     ))}
-                    <span className="flex items-center gap-1 text-[10px] text-gray-400">
+                    <span className="flex items-center gap-1 text-[10px] text-gray-600">
                       <span className="h-2.5 w-2.5 rounded-sm bg-gray-100" />Ledig
                     </span>
                   </div>
@@ -371,10 +371,10 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
       {activeTab === 'soknader' && (
         <div className="mx-auto max-w-2xl px-4 py-5 space-y-4">
           {sokMap.size === 0 ? (
-            <p className="text-center text-sm text-gray-400 py-12">Ingen ubehandlede søknader</p>
+            <p className="text-center text-sm text-gray-600 py-12">Ingen ubehandlede søknader</p>
           ) : Array.from(sokMap.entries()).map(([slotId, apps]) => (
             <div key={slotId} className="card overflow-hidden">
-              <div className="border-b border-gray-100 px-4 py-3">
+              <div className="border-b border-gray-200 px-4 py-3">
                 <p className="font-semibold text-sm text-gray-900">{apps[0].hal_navn}</p>
                 <div className="flex gap-2 mt-0.5">
                   <span className="badge bg-gray-100 text-gray-600">{apps[0].ukedag.charAt(0).toUpperCase() + apps[0].ukedag.slice(1)} {formatTime(apps[0].fra_kl)}–{formatTime(apps[0].til_kl)}</span>
@@ -383,7 +383,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                 </div>
               </div>
               {apps.map((app: any) => (
-                <div key={app.id} className="flex items-start gap-4 border-b border-gray-50 px-4 py-3 last:border-b-0">
+                <div key={app.id} className="flex items-start gap-4 border-b border-gray-200 px-4 py-3 last:border-b-0">
                   <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-semibold ${idrettColor(app.idrett)}`}>
                     {app.klubb_navn.split(' ').map((w: string) => w[0]).slice(0, 2).join('')}
                   </div>
@@ -396,16 +396,16 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                     </div>
                     <div className="flex gap-4 mt-1">
                       <div>
-                        <p className="text-[10px] uppercase tracking-wider text-gray-400">Medlemmer</p>
+                        <p className="text-[10px] uppercase tracking-wider text-gray-600">Medlemmer</p>
                         <p className="text-sm font-semibold tabular-nums text-gray-900">{app.medlemstall ?? '–'}</p>
                       </div>
                       <div>
-                        <p className="text-[10px] uppercase tracking-wider text-gray-400">Timer/uke nå</p>
+                        <p className="text-[10px] uppercase tracking-wider text-gray-600">Timer/uke nå</p>
                         <p className="text-sm font-semibold tabular-nums text-gray-900">{app.eksisterende_timer ?? 0}t</p>
                       </div>
                     </div>
                     {app.begrunnelse && (
-                      <p className="mt-1.5 text-xs italic text-gray-500 bg-gray-50 rounded px-2 py-1">«{app.begrunnelse}»</p>
+                      <p className="mt-1.5 text-xs italic text-gray-600 bg-gray-50 rounded px-2 py-1">«{app.begrunnelse}»</p>
                     )}
                   </div>
                   <div className="flex flex-col gap-1.5 shrink-0">
@@ -423,24 +423,24 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
       {activeTab === 'endringer' && (
         <div className="mx-auto max-w-2xl px-4 py-5 space-y-4">
           {endringer.length === 0 ? (
-            <p className="text-center text-sm text-gray-400 py-12">Ingen endringsforespørsler å behandle</p>
+            <p className="text-center text-sm text-gray-600 py-12">Ingen endringsforespørsler å behandle</p>
           ) : endringer.map((e: any) => (
             <div key={e.id} className="card overflow-hidden">
-              <div className="border-b border-gray-100 px-4 py-3">
+              <div className="border-b border-gray-200 px-4 py-3">
                 <div className="flex items-center gap-2">
                   <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-semibold ${idrettColor(e.klubber?.idrett)}`}>
                     {e.klubber?.navn?.split(' ').map((w: string) => w[0]).slice(0, 2).join('')}
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-gray-900">{e.klubber?.navn}</p>
-                    <p className="text-[10px] text-gray-400">Sendt {new Date(e.tidsstempel).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                    <p className="text-[10px] text-gray-600">Sendt {new Date(e.tidsstempel).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                   </div>
                 </div>
               </div>
               <div className="px-4 py-3 space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-lg bg-gray-50 px-3 py-2">
-                    <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Nåværende tid</p>
+                    <p className="text-[10px] uppercase tracking-wider text-gray-600 mb-1">Nåværende tid</p>
                     <p className="text-sm font-medium text-gray-900">
                       {e.tidslots?.haller?.navn}
                     </p>
@@ -459,7 +459,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                   </div>
                 </div>
                 {e.kommentar && (
-                  <p className="text-xs italic text-gray-500 bg-gray-50 rounded px-2 py-1">«{e.kommentar}»</p>
+                  <p className="text-xs italic text-gray-600 bg-gray-50 rounded px-2 py-1">«{e.kommentar}»</p>
                 )}
                 <div className="flex gap-2 justify-end">
                   <button onClick={() => handleEndring(e.id, 'avslaa')} className="btn btn-danger text-xs px-3 py-1.5">Avslå</button>
@@ -475,7 +475,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
       {activeTab === 'venteliste' && (
         <div className="mx-auto max-w-2xl px-4 py-5 space-y-3">
           {venteliste.length === 0 ? (
-            <p className="text-center text-sm text-gray-400 py-12">Ingen klubber på venteliste</p>
+            <p className="text-center text-sm text-gray-600 py-12">Ingen klubber på venteliste</p>
           ) : venteliste.map((v: any) => (
             <div key={v.id} className="card p-4 flex items-center justify-between gap-4">
               <div>
@@ -483,7 +483,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                 <div className="flex gap-2 mt-1">
                   {v.haller && <span className="badge bg-gray-100 text-gray-600">{v.haller.navn}</span>}
                   {v.gruppe && <span className="badge bg-blue-50 text-blue-700">{v.gruppe.charAt(0).toUpperCase() + v.gruppe.slice(1)}</span>}
-                  <span className="text-xs text-gray-400">{new Date(v.meldt_dato).toLocaleDateString('nb-NO')}</span>
+                  <span className="text-xs text-gray-600">{new Date(v.meldt_dato).toLocaleDateString('nb-NO')}</span>
                 </div>
               </div>
               <div className="flex gap-2 shrink-0">
@@ -503,18 +503,18 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
             <input type="text" placeholder="Søk klubb..." className="input w-56 text-xs" value={klubbSearch} onChange={e => setKlubbSearch(e.target.value)} />
           </div>
           {klubber.length === 0 ? (
-            <p className="text-center text-sm text-gray-400 py-12">Ingen klubber registrert</p>
+            <p className="text-center text-sm text-gray-600 py-12">Ingen klubber registrert</p>
           ) : (
             <div className="card overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50 text-left">
-                    <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Klubb</th>
-                    <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Idrett</th>
-                    <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500 text-right">Medlemmer</th>
-                    <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500 text-right">Andel barn</th>
-                    <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500 text-right">Timer/uke</th>
-                    <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">E-post</th>
+                  <tr className="border-b border-gray-200 bg-gray-50 text-left">
+                    <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-gray-600">Klubb</th>
+                    <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-gray-600">Idrett</th>
+                    <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-gray-600 text-right">Medlemmer</th>
+                    <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-gray-600 text-right">Andel barn</th>
+                    <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-gray-600 text-right">Timer/uke</th>
+                    <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-gray-600">E-post</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -524,7 +524,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                       const klubbSlots = slots.filter(s => s.klubb_id === k.id)
                       const timerPerUke = (klubbSlots.length * 0.5)
                       return (
-                        <tr key={k.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                        <tr key={k.id} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
                           <td className="px-4 py-2.5">
                             <div className="flex items-center gap-2.5">
                               <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[10px] font-semibold ${idrettColor(k.idrett)}`}>
@@ -539,15 +539,15 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                           <td className="px-4 py-2.5 text-right tabular-nums text-xs text-gray-700">{k.medlemstall ?? '–'}</td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-xs text-gray-700">{k.andel_barn != null ? `${k.andel_barn}%` : '–'}</td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-xs font-semibold text-gray-900">{timerPerUke > 0 ? `${timerPerUke}t` : '–'}</td>
-                          <td className="px-4 py-2.5 text-xs text-gray-500 truncate max-w-[180px]">{k.epost}</td>
+                          <td className="px-4 py-2.5 text-xs text-gray-600 truncate max-w-[180px]">{k.epost}</td>
                         </tr>
                       )
                     })}
                 </tbody>
               </table>
-              <div className="border-t border-gray-100 bg-gray-50 px-4 py-2.5 flex items-center justify-between">
-                <span className="text-[10px] text-gray-400">{klubber.length} klubber totalt</span>
-                <span className="text-[10px] text-gray-400">{(slots.filter(s => s.klubb_id).length * 0.5).toFixed(0)}t tildelt totalt</span>
+              <div className="border-t border-gray-200 bg-gray-50 px-4 py-2.5 flex items-center justify-between">
+                <span className="text-[10px] text-gray-600">{klubber.length} klubber totalt</span>
+                <span className="text-[10px] text-gray-600">{(slots.filter(s => s.klubb_id).length * 0.5).toFixed(0)}t tildelt totalt</span>
               </div>
             </div>
           )}
@@ -560,9 +560,9 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 space-y-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <p className="font-semibold text-gray-900">Rediger slot</p>
-              <button onClick={() => setSlotModal(null)} className="text-gray-400 text-xl leading-none">×</button>
+              <button onClick={() => setSlotModal(null)} className="text-gray-600 text-xl leading-none">×</button>
             </div>
-            <p className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
+            <p className="text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-2">
               {slotModal.haller?.navn} — {slotModal.ukedag.charAt(0).toUpperCase() + slotModal.ukedag.slice(1)} {formatTime(slotModal.fra_kl)}–{formatTime(slotModal.til_kl)}
             </p>
             <div>
@@ -593,9 +593,9 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
           <form onSubmit={opprettSlot} className="w-full max-w-sm rounded-2xl bg-white p-6 space-y-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <p className="font-semibold text-gray-900">Legg til tidslot</p>
-              <button type="button" onClick={() => setShowNySlot(false)} className="text-gray-400 text-xl leading-none">×</button>
+              <button type="button" onClick={() => setShowNySlot(false)} className="text-gray-600 text-xl leading-none">×</button>
             </div>
-            <p className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">{selectedHal?.navn}</p>
+            <p className="text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-2">{selectedHal?.navn}</p>
             <div>
               <label className="label mb-1.5">Ukedag</label>
               <select className="input" required value={nySlotForm.ukedag} onChange={e => setNySlotForm(f => ({ ...f, ukedag: e.target.value }))}>
@@ -640,7 +640,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
           <form onSubmit={opprettSesong} className="w-full max-w-sm rounded-2xl bg-white p-6 space-y-4">
             <div className="flex items-center justify-between">
               <p className="font-semibold text-gray-900">Opprett ny sesong</p>
-              <button type="button" onClick={() => setShowNySesong(false)} className="text-gray-400 text-xl leading-none">×</button>
+              <button type="button" onClick={() => setShowNySesong(false)} className="text-gray-600 text-xl leading-none">×</button>
             </div>
             <div>
               <label className="label mb-1.5">Sesongnavn</label>
@@ -661,7 +661,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                   <option key={s.id} value={s.id}>{s.navn}</option>
                 ))}
               </select>
-              <p className="mt-1 text-[10px] text-gray-400">Alle tidslots med klubbtildelinger kopieres som utgangspunkt</p>
+              <p className="mt-1 text-[10px] text-gray-600">Alle tidslots med klubbtildelinger kopieres som utgangspunkt</p>
             </div>
             {nySesongFeil && <p className="text-sm text-red-600">{nySesongFeil}</p>}
             <div className="flex gap-2 justify-end">
@@ -680,7 +680,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
           <form onSubmit={opprettHall} className="w-full max-w-sm rounded-2xl bg-white p-6 space-y-4">
             <div className="flex items-center justify-between">
               <p className="font-semibold text-gray-900">Legg til hall / aktivitetssal</p>
-              <button type="button" onClick={() => setShowNyHall(false)} className="text-gray-400 text-xl leading-none">×</button>
+              <button type="button" onClick={() => setShowNyHall(false)} className="text-gray-600 text-xl leading-none">×</button>
             </div>
             <div>
               <label className="label mb-1.5">Navn</label>

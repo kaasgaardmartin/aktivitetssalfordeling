@@ -22,10 +22,10 @@
     @apply rounded-xl border border-gray-200 bg-white;
   }
   .input {
-    @apply w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm placeholder-gray-400 focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900;
+    @apply w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm placeholder-gray-500 focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900;
   }
   .label {
-    @apply block text-xs font-semibold uppercase tracking-wider text-gray-500;
+    @apply block text-xs font-semibold uppercase tracking-wider text-gray-600;
   }
   .badge {
     @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold;

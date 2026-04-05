@@ -22,7 +22,7 @@ export default function ReglerEditor({ regler }: { regler: any }) {
     <div className="min-h-screen bg-gray-50">
       <div className="sticky top-0 z-10 flex h-13 items-center justify-between border-b border-gray-200 bg-white px-5">
         <div className="flex items-center gap-3">
-          <a href="/admin" className="text-sm text-gray-500 hover:text-gray-800">← Admin</a>
+          <a href="/admin" className="text-sm text-gray-600 hover:text-gray-800">← Admin</a>
           <span className="h-4 w-px bg-gray-200" />
           <span className="text-sm font-semibold text-gray-900">Regler og info</span>
         </div>
@@ -34,7 +34,7 @@ export default function ReglerEditor({ regler }: { regler: any }) {
         </div>
       </div>
       <div className="mx-auto max-w-2xl px-4 py-6 space-y-3">
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-600">
           Teksten vises for alle klubber under "Regler og info". Bruk tomme linjer for å skille seksjoner.
         </p>
         <textarea
@@ -44,7 +44,7 @@ export default function ReglerEditor({ regler }: { regler: any }) {
           placeholder="Skriv inn regler og retningslinjer her..."
         />
         {regler?.oppdatert_at && (
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-gray-500">
             Sist oppdatert: {new Date(regler.oppdatert_at).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
           </p>
         )}
