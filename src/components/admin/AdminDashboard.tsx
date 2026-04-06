@@ -302,6 +302,24 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
     setEditHallLaster(false)
   }
 
+  async function slettHall() {
+    if (!editHallForm.id) return
+    const hal = hallerState.find(h => h.id === editHallForm.id)
+    const halSlotCount = slots.filter(s => s.hal_id === editHallForm.id).length
+    const msg = halSlotCount > 0
+      ? `Er du sikker på at du vil slette "${hal?.navn}"? ${halSlotCount} tidslot${halSlotCount !== 1 ? 'er' : ''} vil også bli slettet.`
+      : `Er du sikker på at du vil slette "${hal?.navn}"?`
+    if (!confirm(msg)) return
+
+    const res = await fetch(`/api/haller?id=${editHallForm.id}`, { method: 'DELETE' })
+    if (res.ok) {
+      setHallerState(prev => prev.filter(h => h.id !== editHallForm.id))
+      setSlots(prev => prev.filter(s => s.hal_id !== editHallForm.id))
+      setSelectedHalId(hallerState.find(h => h.id !== editHallForm.id)?.id ?? null)
+      setShowEditHall(false)
+    }
+  }
+
   async function uploadBilde(file: File) {
     if (!editHallForm.id) return
     setUploadingBilde(true)
@@ -909,11 +927,14 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
             </div>
 
             {editHallFeil && <p className="text-sm text-red-600">{editHallFeil}</p>}
-            <div className="flex gap-2 justify-end">
-              <button type="button" onClick={() => setShowEditHall(false)} className="btn">Avbryt</button>
-              <button type="submit" disabled={editHallLaster} className="btn-primary">
-                {editHallLaster ? 'Lagrer...' : 'Lagre endringer'}
-              </button>
+            <div className="flex gap-2 justify-between">
+              <button type="button" onClick={slettHall} className="btn btn-danger text-xs px-3">Slett hall</button>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowEditHall(false)} className="btn">Avbryt</button>
+                <button type="submit" disabled={editHallLaster} className="btn-primary">
+                  {editHallLaster ? 'Lagrer...' : 'Lagre endringer'}
+                </button>
+              </div>
             </div>
           </form>
         </div>
