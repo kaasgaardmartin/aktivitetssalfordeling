@@ -12,6 +12,7 @@ export interface Database {
           navn: string
           underlag: string | null
           merknader: string | null
+          adresse: string | null
           stengedager: string | null
           bilder: string[] | null
           normert_timer: number | null

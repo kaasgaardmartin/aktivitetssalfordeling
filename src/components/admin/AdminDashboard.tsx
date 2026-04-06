@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 
 const UKEDAG_ORDER = ['mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag']
 const UKEDAG_SHORT: Record<string, string> = { mandag: 'Man', tirsdag: 'Tir', onsdag: 'Ons', torsdag: 'Tor', fredag: 'Fre' }
@@ -40,17 +40,25 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
   const [nySesongLaster, setNySesongLaster] = useState(false)
   const [nySesongFeil, setNySesongFeil] = useState('')
   const [showNyHall, setShowNyHall] = useState(false)
-  const [nyHallForm, setNyHallForm] = useState({ navn: '', underlag: '', merknader: '', stengedager: '' })
+  const [nyHallForm, setNyHallForm] = useState({ navn: '', underlag: '', merknader: '', stengedager: '', adresse: '' })
   const [nyHallLaster, setNyHallLaster] = useState(false)
   const [nyHallFeil, setNyHallFeil] = useState('')
   const [showNySlot, setShowNySlot] = useState(false)
-  const [nySlotForm, setNySlotForm] = useState({ ukedag: 'mandag', fra_kl: '16:00', til_kl: '16:30', klubb_id: '' })
+  const [nySlotForm, setNySlotForm] = useState({ ukedag: 'mandag', fra_kl: '16:00', til_kl: '22:30', klubb_id: '' })
   const [nySlotLaster, setNySlotLaster] = useState(false)
   const [nySlotFeil, setNySlotFeil] = useState('')
   const [klubbSearch, setKlubbSearch] = useState('')
   const [endringer, setEndringer] = useState(initialEndringer)
+  const [hallerState, setHallerState] = useState(haller)
+  const [showEditHall, setShowEditHall] = useState(false)
+  const [editHallForm, setEditHallForm] = useState({ id: '', navn: '', underlag: '', merknader: '', adresse: '', stengedager: '' })
+  const [editHallLaster, setEditHallLaster] = useState(false)
+  const [editHallFeil, setEditHallFeil] = useState('')
+  const [editHallBilder, setEditHallBilder] = useState<string[]>([])
+  const [uploadingBilde, setUploadingBilde] = useState(false)
+  const bildeInputRef = useRef<HTMLInputElement>(null)
 
-  const selectedHal = haller.find(h => h.id === selectedHalId)
+  const selectedHal = hallerState.find(h => h.id === selectedHalId)
   const halSlots = slots.filter(s => s.hal_id === selectedHalId)
 
   // Stats for selected hall
@@ -145,12 +153,13 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
         navn: nyHallForm.navn,
         underlag: nyHallForm.underlag || null,
         merknader: nyHallForm.merknader || null,
+        adresse: nyHallForm.adresse || null,
         stengedager: nyHallForm.stengedager || null,
       }),
     })
     if (res.ok) {
       setShowNyHall(false)
-      setNyHallForm({ navn: '', underlag: '', merknader: '', stengedager: '' })
+      setNyHallForm({ navn: '', underlag: '', merknader: '', stengedager: '', adresse: '' })
       window.location.reload()
     } else {
       const data = await res.json()
@@ -190,38 +199,136 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
     }
   }
 
+  function generate30minSlots(fra: string, til: string) {
+    const slots: { fra_kl: string; til_kl: string }[] = []
+    const [fH, fM] = fra.split(':').map(Number)
+    const [tH, tM] = til.split(':').map(Number)
+    let cur = fH * 60 + fM
+    const end = tH * 60 + tM
+    while (cur + 30 <= end) {
+      const h1 = String(Math.floor(cur / 60)).padStart(2, '0')
+      const m1 = String(cur % 60).padStart(2, '0')
+      const h2 = String(Math.floor((cur + 30) / 60)).padStart(2, '0')
+      const m2 = String((cur + 30) % 60).padStart(2, '0')
+      slots.push({ fra_kl: `${h1}:${m1}`, til_kl: `${h2}:${m2}` })
+      cur += 30
+    }
+    return slots
+  }
+
   async function opprettSlot(e: React.FormEvent) {
     e.preventDefault()
     if (!selectedHalId || !aktivSesong) return
     setNySlotLaster(true)
     setNySlotFeil('')
+
+    const intervals = generate30minSlots(nySlotForm.fra_kl, nySlotForm.til_kl)
+    if (intervals.length === 0) {
+      setNySlotFeil('Tidsrommet må være minst 30 minutter')
+      setNySlotLaster(false)
+      return
+    }
+
+    const payload = intervals.map(s => ({
+      hal_id: selectedHalId,
+      sesong_id: aktivSesong.id,
+      ukedag: nySlotForm.ukedag,
+      fra_kl: s.fra_kl,
+      til_kl: s.til_kl,
+      klubb_id: nySlotForm.klubb_id || null,
+    }))
+
     const res = await fetch('/api/tidslots', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        hal_id: selectedHalId,
-        sesong_id: aktivSesong.id,
-        ukedag: nySlotForm.ukedag,
-        fra_kl: nySlotForm.fra_kl,
-        til_kl: nySlotForm.til_kl,
-        klubb_id: nySlotForm.klubb_id || null,
-      }),
+      body: JSON.stringify(payload),
     })
     if (res.ok) {
-      const [created] = await res.json()
+      const created = await res.json()
       const tildeltKlubb = klubber.find(k => k.id === nySlotForm.klubb_id) ?? null
-      setSlots(prev => [...prev, {
-        ...created,
+      const newSlots = created.map((c: any) => ({
+        ...c,
         haller: { id: selectedHalId, navn: selectedHal?.navn, underlag: selectedHal?.underlag },
         klubber: tildeltKlubb ? { id: tildeltKlubb.id, navn: tildeltKlubb.navn, idrett: tildeltKlubb.idrett } : null,
-      }])
+      }))
+      setSlots(prev => [...prev, ...newSlots])
       setShowNySlot(false)
-      setNySlotForm({ ukedag: 'mandag', fra_kl: '16:00', til_kl: '16:30', klubb_id: '' })
+      setNySlotForm({ ukedag: 'mandag', fra_kl: '16:00', til_kl: '22:30', klubb_id: '' })
     } else {
       const data = await res.json()
       setNySlotFeil(data.error || 'Noe gikk galt')
     }
     setNySlotLaster(false)
+  }
+
+  function openEditHall(hal: any) {
+    setEditHallForm({
+      id: hal.id,
+      navn: hal.navn ?? '',
+      underlag: hal.underlag ?? '',
+      merknader: hal.merknader ?? '',
+      adresse: hal.adresse ?? '',
+      stengedager: hal.stengedager ?? '',
+    })
+    setEditHallBilder(hal.bilder ?? [])
+    setEditHallFeil('')
+    setShowEditHall(true)
+  }
+
+  async function lagreEditHall(e: React.FormEvent) {
+    e.preventDefault()
+    setEditHallLaster(true)
+    setEditHallFeil('')
+    const res = await fetch('/api/haller', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: editHallForm.id,
+        navn: editHallForm.navn,
+        underlag: editHallForm.underlag || null,
+        merknader: editHallForm.merknader || null,
+        adresse: editHallForm.adresse || null,
+        stengedager: editHallForm.stengedager || null,
+      }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setHallerState(prev => prev.map(h => h.id === updated.id ? { ...h, ...updated } : h))
+      setShowEditHall(false)
+    } else {
+      const data = await res.json()
+      setEditHallFeil(data.error || 'Noe gikk galt')
+    }
+    setEditHallLaster(false)
+  }
+
+  async function uploadBilde(file: File) {
+    if (!editHallForm.id) return
+    setUploadingBilde(true)
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('hal_id', editHallForm.id)
+    const res = await fetch('/api/haller/bilder', { method: 'POST', body: formData })
+    if (res.ok) {
+      const { url, hall } = await res.json()
+      setEditHallBilder(hall.bilder ?? [])
+      setHallerState(prev => prev.map(h => h.id === hall.id ? { ...h, bilder: hall.bilder } : h))
+    }
+    setUploadingBilde(false)
+  }
+
+  async function slettBilde(url: string) {
+    if (!editHallForm.id || !confirm('Slette dette bildet?')) return
+    const res = await fetch('/api/haller/bilder', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hal_id: editHallForm.id, url }),
+    })
+    if (res.ok) {
+      const { hall } = await res.json()
+      setEditHallBilder(hall.bilder ?? [])
+      setHallerState(prev => prev.map(h => h.id === hall.id ? { ...h, bilder: hall.bilder } : h))
+    }
   }
 
   const ubesvarteSok = soknader.filter(s => s.status === 'venter').length
@@ -273,7 +380,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
           {/* Sidebar */}
           <div className="w-52 shrink-0 overflow-y-auto border-r border-gray-200 bg-white py-3">
             <p className="px-4 pb-2 text-[10px] font-semibold uppercase tracking-wider text-gray-600">Haller og saler</p>
-            {haller.map(h => {
+            {hallerState.map(h => {
               const hSlotCount = slots.filter(s => s.hal_id === h.id).length
               const hSok = soknader.filter(s => s.hal_id === h.id).length
               return (
@@ -295,11 +402,25 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
               <>
                 <div className="flex items-start justify-between">
                   <div>
-                    <h1 className="text-lg font-semibold text-gray-900">{selectedHal.navn}</h1>
+                    <div className="flex items-center gap-2">
+                      <h1 className="text-lg font-semibold text-gray-900">{selectedHal.navn}</h1>
+                      <button onClick={() => openEditHall(selectedHal)} className="text-gray-500 hover:text-gray-700 transition-colors" title="Rediger hall">
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>
+                      </button>
+                    </div>
+                    {selectedHal.adresse && <p className="text-xs text-gray-600 mt-0.5">{selectedHal.adresse}</p>}
                     <div className="flex gap-2 mt-1">
                       {selectedHal.underlag && <span className="badge bg-gray-100 text-gray-600">{selectedHal.underlag}</span>}
                       {selectedHal.stengedager && <span className="badge bg-amber-50 text-amber-600">Stengt: {selectedHal.stengedager}</span>}
                     </div>
+                    {selectedHal.bilder?.length > 0 && (
+                      <div className="flex gap-2 mt-2 overflow-x-auto">
+                        {selectedHal.bilder.slice(0, 4).map((url: string, i: number) => (
+                          <img key={i} src={url} alt={`${selectedHal.navn} bilde ${i + 1}`} className="h-16 w-24 rounded-lg object-cover border border-gray-200" />
+                        ))}
+                        {selectedHal.bilder.length > 4 && <span className="flex items-center text-xs text-gray-600">+{selectedHal.bilder.length - 4} til</span>}
+                      </div>
+                    )}
                   </div>
                   <button onClick={() => setShowNySlot(true)} className="btn text-xs">+ Legg til slot</button>
                 </div>
@@ -607,13 +728,21 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="label mb-1.5">Fra kl.</label>
-                <input type="time" className="input" required value={nySlotForm.fra_kl} onChange={e => setNySlotForm(f => ({ ...f, fra_kl: e.target.value }))} />
+                <input type="time" className="input" required step="1800" value={nySlotForm.fra_kl} onChange={e => setNySlotForm(f => ({ ...f, fra_kl: e.target.value }))} />
               </div>
               <div>
                 <label className="label mb-1.5">Til kl.</label>
-                <input type="time" className="input" required value={nySlotForm.til_kl} onChange={e => setNySlotForm(f => ({ ...f, til_kl: e.target.value }))} />
+                <input type="time" className="input" required step="1800" value={nySlotForm.til_kl} onChange={e => setNySlotForm(f => ({ ...f, til_kl: e.target.value }))} />
               </div>
             </div>
+            {(() => {
+              const n = generate30minSlots(nySlotForm.fra_kl, nySlotForm.til_kl).length
+              return n > 0 ? (
+                <p className="text-xs text-gray-600 bg-blue-50 rounded-lg px-3 py-2">
+                  {n} blokk{n > 1 ? 'er' : ''} à 30 min ({(n * 0.5).toFixed(1).replace('.0', '')}t totalt)
+                </p>
+              ) : null
+            })()}
             <div>
               <label className="label mb-1.5">Tildel klubb (valgfritt)</label>
               <select className="input" value={nySlotForm.klubb_id} onChange={e => setNySlotForm(f => ({ ...f, klubb_id: e.target.value }))}>
@@ -627,7 +756,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
             <div className="flex gap-2 justify-end">
               <button type="button" onClick={() => setShowNySlot(false)} className="btn">Avbryt</button>
               <button type="submit" disabled={nySlotLaster} className="btn-primary">
-                {nySlotLaster ? 'Lagrer...' : 'Legg til'}
+                {nySlotLaster ? 'Lagrer...' : `Legg til ${generate30minSlots(nySlotForm.fra_kl, nySlotForm.til_kl).length} blokk${generate30minSlots(nySlotForm.fra_kl, nySlotForm.til_kl).length !== 1 ? 'er' : ''}`}
               </button>
             </div>
           </form>
@@ -688,6 +817,11 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                 value={nyHallForm.navn} onChange={e => setNyHallForm(f => ({ ...f, navn: e.target.value }))} />
             </div>
             <div>
+              <label className="label mb-1.5">Adresse</label>
+              <input className="input" placeholder="F.eks. Dælenggt. 18, 0567 Oslo"
+                value={nyHallForm.adresse} onChange={e => setNyHallForm(f => ({ ...f, adresse: e.target.value }))} />
+            </div>
+            <div>
               <label className="label mb-1.5">Underlag</label>
               <select className="input"
                 value={nyHallForm.underlag} onChange={e => setNyHallForm(f => ({ ...f, underlag: e.target.value }))}>
@@ -712,6 +846,73 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
               <button type="button" onClick={() => setShowNyHall(false)} className="btn">Avbryt</button>
               <button type="submit" disabled={nyHallLaster} className="btn-primary">
                 {nyHallLaster ? 'Lagrer...' : 'Legg til hall'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+      {/* ── REDIGER HALL MODAL ── */}
+      {showEditHall && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setShowEditHall(false)}>
+          <form onSubmit={lagreEditHall} className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <p className="font-semibold text-gray-900">Rediger hall</p>
+              <button type="button" onClick={() => setShowEditHall(false)} className="text-gray-600 text-xl leading-none">&times;</button>
+            </div>
+            <div>
+              <label className="label mb-1.5">Navn</label>
+              <input className="input" required value={editHallForm.navn} onChange={e => setEditHallForm(f => ({ ...f, navn: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label mb-1.5">Adresse</label>
+              <input className="input" placeholder="F.eks. Dælenggt. 18, 0567 Oslo" value={editHallForm.adresse} onChange={e => setEditHallForm(f => ({ ...f, adresse: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label mb-1.5">Underlag</label>
+              <select className="input" value={editHallForm.underlag} onChange={e => setEditHallForm(f => ({ ...f, underlag: e.target.value }))}>
+                <option value="">— Velg underlag —</option>
+                {['Puslematter', 'Brytematter', 'Judomatter', 'Sportsgulv', 'Parkett', 'Kunstdekke', 'Annet'].map(u => (
+                  <option key={u} value={u}>{u}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label mb-1.5">Merknader</label>
+              <input className="input" placeholder="Valgfritt" value={editHallForm.merknader} onChange={e => setEditHallForm(f => ({ ...f, merknader: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label mb-1.5">Stengedager</label>
+              <input className="input" placeholder="F.eks. helligdager, jul" value={editHallForm.stengedager} onChange={e => setEditHallForm(f => ({ ...f, stengedager: e.target.value }))} />
+            </div>
+
+            {/* Bilder */}
+            <div>
+              <label className="label mb-1.5">Bilder</label>
+              {editHallBilder.length > 0 && (
+                <div className="grid grid-cols-3 gap-2 mb-3">
+                  {editHallBilder.map((url, i) => (
+                    <div key={i} className="group relative">
+                      <img src={url} alt={`Bilde ${i + 1}`} className="h-24 w-full rounded-lg object-cover border border-gray-200" />
+                      <button type="button" onClick={() => slettBilde(url)}
+                        className="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Slett bilde">&times;</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <input ref={bildeInputRef} type="file" accept="image/*" className="hidden"
+                onChange={e => { if (e.target.files?.[0]) uploadBilde(e.target.files[0]); e.target.value = '' }} />
+              <button type="button" onClick={() => bildeInputRef.current?.click()} disabled={uploadingBilde}
+                className="btn text-xs w-full">
+                {uploadingBilde ? 'Laster opp...' : '+ Last opp bilde'}
+              </button>
+            </div>
+
+            {editHallFeil && <p className="text-sm text-red-600">{editHallFeil}</p>}
+            <div className="flex gap-2 justify-end">
+              <button type="button" onClick={() => setShowEditHall(false)} className="btn">Avbryt</button>
+              <button type="submit" disabled={editHallLaster} className="btn-primary">
+                {editHallLaster ? 'Lagrer...' : 'Lagre endringer'}
               </button>
             </div>
           </form>
