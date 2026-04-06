@@ -1,14 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
+import { verifyAdmin } from '@/lib/admin-auth'
 
-// POST /api/haller/bilder — upload image for a hall
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+const MAX_SIZE = 5 * 1024 * 1024 // 5 MB
+
+// POST /api/haller/bilder — upload image for a hall (admin only)
 export async function POST(request: NextRequest) {
+  const { error: authError } = await verifyAdmin()
+  if (authError) return authError
+
   const formData = await request.formData()
   const file = formData.get('file') as File | null
   const halId = formData.get('hal_id') as string | null
 
   if (!file || !halId) {
     return NextResponse.json({ error: 'Mangler fil eller hal_id' }, { status: 400 })
+  }
+
+  // Validate file type
+  if (!ALLOWED_TYPES.includes(file.type)) {
+    return NextResponse.json(
+      { error: `Ugyldig filtype: ${file.type}. Tillatte typer: JPG, PNG, WebP, GIF` },
+      { status: 400 }
+    )
+  }
+
+  // Validate file size
+  if (file.size > MAX_SIZE) {
+    return NextResponse.json(
+      { error: `Filen er for stor (${(file.size / 1024 / 1024).toFixed(1)} MB). Maks 5 MB.` },
+      { status: 400 }
+    )
   }
 
   const supabase = createAdminClient()
@@ -51,8 +74,11 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ url: publicUrl, hall: data }, { status: 201 })
 }
 
-// DELETE /api/haller/bilder — remove image from a hall
+// DELETE /api/haller/bilder — remove image from a hall (admin only)
 export async function DELETE(request: NextRequest) {
+  const { error: authError } = await verifyAdmin()
+  if (authError) return authError
+
   const { hal_id, url } = await request.json()
 
   if (!hal_id || !url) {

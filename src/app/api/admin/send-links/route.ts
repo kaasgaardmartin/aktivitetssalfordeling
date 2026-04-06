@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
+import { verifyAdmin } from '@/lib/admin-auth'
 
 // POST /api/admin/send-links — generate and send magic links to all clubs
 export async function POST(request: NextRequest) {
+  const { error: authError } = await verifyAdmin()
+  if (authError) return authError
+
   const body = await request.json()
   const { sesong_id } = body as { sesong_id: string }
 

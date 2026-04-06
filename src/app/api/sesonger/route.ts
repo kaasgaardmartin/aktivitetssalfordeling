@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
+import { verifyAdmin } from '@/lib/admin-auth'
 
 // GET /api/sesonger — list all seasons
 export async function GET() {
@@ -15,6 +16,9 @@ export async function GET() {
 
 // POST /api/sesonger — create new season, optionally copy slots from previous
 export async function POST(request: NextRequest) {
+  const { error: authError } = await verifyAdmin()
+  if (authError) return authError
+
   const body = await request.json()
   const supabase = createAdminClient()
 
@@ -56,6 +60,9 @@ export async function POST(request: NextRequest) {
 
 // PATCH /api/sesonger — update status or frist
 export async function PATCH(request: NextRequest) {
+  const { error: authError } = await verifyAdmin()
+  if (authError) return authError
+
   const body = await request.json()
   const { id, ...update } = body
 

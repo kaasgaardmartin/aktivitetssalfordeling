@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
+import { verifyAdmin } from '@/lib/admin-auth'
 
 // GET /api/tidslots?sesong_id=&hal_id=&klubb_id=
 export async function GET(request: NextRequest) {
@@ -29,6 +30,9 @@ export async function GET(request: NextRequest) {
 
 // POST /api/tidslots — admin creates slot(s)
 export async function POST(request: NextRequest) {
+  const { error: authError } = await verifyAdmin()
+  if (authError) return authError
+
   const body = await request.json()
   const supabase = createAdminClient()
 
@@ -46,6 +50,9 @@ export async function POST(request: NextRequest) {
 
 // PATCH /api/tidslots — admin updates slot (reassign club)
 export async function PATCH(request: NextRequest) {
+  const { error: authError } = await verifyAdmin()
+  if (authError) return authError
+
   const body = await request.json()
   const { id, klubb_id } = body
 
@@ -63,6 +70,9 @@ export async function PATCH(request: NextRequest) {
 
 // DELETE /api/tidslots?id=
 export async function DELETE(request: NextRequest) {
+  const { error: authError } = await verifyAdmin()
+  if (authError) return authError
+
   const id = request.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'Mangler id' }, { status: 400 })
 

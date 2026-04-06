@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
+import { verifyAdmin } from '@/lib/admin-auth'
 
-// GET /api/haller — list all active halls
+// GET /api/haller — list all active halls (public read is OK)
 export async function GET() {
   const supabase = createAdminClient()
   const { data, error } = await supabase
@@ -14,8 +15,11 @@ export async function GET() {
   return NextResponse.json(data)
 }
 
-// POST /api/haller — create hall (admin)
+// POST /api/haller — create hall (admin only)
 export async function POST(request: NextRequest) {
+  const { error: authError } = await verifyAdmin()
+  if (authError) return authError
+
   const body = await request.json()
   const supabase = createAdminClient()
   const { data, error } = await supabase
@@ -28,8 +32,11 @@ export async function POST(request: NextRequest) {
   return NextResponse.json(data, { status: 201 })
 }
 
-// PATCH /api/haller — update hall (admin)
+// PATCH /api/haller — update hall (admin only)
 export async function PATCH(request: NextRequest) {
+  const { error: authError } = await verifyAdmin()
+  if (authError) return authError
+
   const body = await request.json()
   const { id, ...update } = body
   const supabase = createAdminClient()
@@ -44,8 +51,11 @@ export async function PATCH(request: NextRequest) {
   return NextResponse.json(data)
 }
 
-// DELETE /api/haller — soft-delete hall (set aktiv = false) and remove its slots
+// DELETE /api/haller — soft-delete hall (admin only)
 export async function DELETE(request: NextRequest) {
+  const { error: authError } = await verifyAdmin()
+  if (authError) return authError
+
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'Mangler id' }, { status: 400 })
