@@ -18,7 +18,7 @@ export default async function AdminPage() {
   let endringer: any[] = []
   if (aktivSesong) {
     const [slotsRes, endringerRes] = await Promise.all([
-      supabase.from('tidslots').select('*, haller(id, navn, underlag), klubber(id, navn, idrett)').eq('sesong_id', aktivSesong.id).order('ukedag').order('fra_kl'),
+      supabase.from('tidslots').select('*, haller(id, navn, underlag), klubber(id, navn, idrett)').eq('sesong_id', aktivSesong.id).order('ukedag').order('fra_kl').range(0, 9999),
       supabase.from('svar').select('*, klubber(id, navn, idrett), tidslots(id, ukedag, fra_kl, til_kl, hal_id, haller(id, navn))').eq('sesong_id', aktivSesong.id).eq('handling', 'endre'),
     ])
     slots = slotsRes.data ?? []
