@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { verifyAdmin } from '@/lib/admin-auth'
+import { z } from 'zod'
+
+const sesongCreateSchema = z.object({
+  navn: z.string().min(3, 'Sesongnavn må ha minst 3 tegn'),
+  frist: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Ugyldig datoformat'),
+  kopier_fra_sesong_id: z.string().uuid().optional(),
+})
+
+const sesongUpdateSchema = z.object({
+  id: z.string().uuid(),
+  status: z.enum(['utkast', 'aktiv', 'lukket']).optional(),
+  frist: z.string().optional(),
+  navn: z.string().min(3).optional(),
+})
 
 // GET /api/sesonger — list all seasons
 export async function GET() {
@@ -20,23 +34,24 @@ export async function POST(request: NextRequest) {
   if (authError) return authError
 
   const body = await request.json()
+  const parsed = sesongCreateSchema.safeParse(body)
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+
   const supabase = createAdminClient()
 
-  // Create the new season
   const { data: sesong, error } = await supabase
     .from('sesonger')
-    .insert({ navn: body.navn, frist: body.frist, status: 'utkast' })
+    .insert({ navn: parsed.data.navn, frist: parsed.data.frist, status: 'utkast' })
     .select()
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Copy slots from previous season if requested
-  if (body.kopier_fra_sesong_id) {
+  if (parsed.data.kopier_fra_sesong_id) {
     const { data: forrigeSlots, error: slotErr } = await supabase
       .from('tidslots')
       .select('hal_id, ukedag, fra_kl, til_kl, klubb_id')
-      .eq('sesong_id', body.kopier_fra_sesong_id)
+      .eq('sesong_id', parsed.data.kopier_fra_sesong_id)
 
     if (slotErr) return NextResponse.json({ error: slotErr.message }, { status: 500 })
 
@@ -64,8 +79,10 @@ export async function PATCH(request: NextRequest) {
   if (authError) return authError
 
   const body = await request.json()
-  const { id, ...update } = body
+  const parsed = sesongUpdateSchema.safeParse(body)
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
 
+  const { id, ...update } = parsed.data
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('sesonger')

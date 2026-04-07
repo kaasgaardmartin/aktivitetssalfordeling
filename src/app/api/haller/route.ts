@@ -1,6 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { verifyAdmin } from '@/lib/admin-auth'
+import { z } from 'zod'
+
+const hallCreateSchema = z.object({
+  navn: z.string().min(2, 'Navn må ha minst 2 tegn'),
+  underlag: z.string().nullable().optional(),
+  merknader: z.string().nullable().optional(),
+  adresse: z.string().nullable().optional(),
+  stengedager: z.string().nullable().optional(),
+})
+
+const hallUpdateSchema = z.object({
+  id: z.string().uuid(),
+  navn: z.string().min(2).optional(),
+  underlag: z.string().nullable().optional(),
+  merknader: z.string().nullable().optional(),
+  adresse: z.string().nullable().optional(),
+  stengedager: z.string().nullable().optional(),
+})
 
 // GET /api/haller — list all active halls (public read is OK)
 export async function GET() {
@@ -21,10 +39,13 @@ export async function POST(request: NextRequest) {
   if (authError) return authError
 
   const body = await request.json()
+  const parsed = hallCreateSchema.safeParse(body)
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('haller')
-    .insert(body)
+    .insert(parsed.data)
     .select()
     .single()
 
@@ -38,7 +59,10 @@ export async function PATCH(request: NextRequest) {
   if (authError) return authError
 
   const body = await request.json()
-  const { id, ...update } = body
+  const parsed = hallUpdateSchema.safeParse(body)
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+
+  const { id, ...update } = parsed.data
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('haller')
@@ -61,11 +85,8 @@ export async function DELETE(request: NextRequest) {
   if (!id) return NextResponse.json({ error: 'Mangler id' }, { status: 400 })
 
   const supabase = createAdminClient()
-
-  // Delete all time slots for this hall
   await supabase.from('tidslots').delete().eq('hal_id', id)
 
-  // Soft-delete the hall
   const { error } = await supabase
     .from('haller')
     .update({ aktiv: false })
