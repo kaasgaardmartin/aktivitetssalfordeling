@@ -82,17 +82,18 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
   }
 
   async function handleEndring(ids: string[], action: 'godkjenn' | 'avslaa') {
-    const results = await Promise.all(ids.map(id =>
-      fetch('/api/svar', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, action }),
-      })
-    ))
-    if (results.every(r => r.ok)) {
+    const res = await fetch('/api/svar', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, action }),
+    })
+    if (res.ok) {
       const idSet = new Set(ids)
       setEndringer(prev => prev.filter(e => !idSet.has(e.id)))
       if (action === 'godkjenn') window.location.reload()
+    } else {
+      const detail = await res.json().catch(() => ({}))
+      alert(`Kunne ikke ${action === 'godkjenn' ? 'godkjenne' : 'avslå'}: ${detail.error ?? res.statusText}`)
     }
   }
 
