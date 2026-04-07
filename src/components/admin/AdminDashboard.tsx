@@ -81,14 +81,17 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
     }
   }
 
-  async function handleEndring(id: string, action: 'godkjenn' | 'avslaa') {
-    const res = await fetch('/api/svar', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, action }),
-    })
-    if (res.ok) {
-      setEndringer(prev => prev.filter(e => e.id !== id))
+  async function handleEndring(ids: string[], action: 'godkjenn' | 'avslaa') {
+    const results = await Promise.all(ids.map(id =>
+      fetch('/api/svar', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action }),
+      })
+    ))
+    if (results.every(r => r.ok)) {
+      const idSet = new Set(ids)
+      setEndringer(prev => prev.filter(e => !idSet.has(e.id)))
       if (action === 'godkjenn') window.location.reload()
     }
   }

@@ -72,8 +72,81 @@ export interface Endring {
   ny_ukedag: string | null
   ny_fra_kl: string | null
   ny_til_kl: string | null
-  klubber?: { navn: string; idrett: string | null }
-  tidslots?: { ukedag: string; fra_kl: string; til_kl: string; haller?: { navn: string } }
+  klubb_id?: string
+  tidslot_id?: string
+  klubber?: { id?: string; navn: string; idrett: string | null }
+  tidslots?: { id?: string; ukedag: string; fra_kl: string; til_kl: string; hal_id?: string; haller?: { id?: string; navn: string } }
+}
+
+// En gruppert endring som dekker flere kontigue 30-min slots
+export interface EndringGruppe {
+  klubb_id: string
+  klubb_navn: string
+  klubb_idrett: string | null
+  hal_id: string
+  hal_navn: string
+  ukedag: string
+  fra_kl: string
+  til_kl: string
+  ny_ukedag: string | null
+  ny_fra_kl: string | null
+  ny_til_kl: string | null
+  kommentar: string | null
+  tidsstempel: string
+  endring_ids: string[]
+}
+
+function timeToMin(t: string) {
+  const [h, m] = t.slice(0, 5).split(':').map(Number)
+  return h * 60 + m
+}
+
+export function groupEndringer(endringer: Endring[]): EndringGruppe[] {
+  // Sorter slik at sammenhengende slots kommer etter hverandre
+  const sorted = [...endringer].sort((a, b) => {
+    const ka = `${a.klubber?.id ?? ''}|${a.tidslots?.haller?.id ?? a.tidslots?.hal_id ?? ''}|${a.tidslots?.ukedag ?? ''}|${a.ny_ukedag ?? ''}|${a.ny_fra_kl ?? ''}|${a.ny_til_kl ?? ''}|${a.kommentar ?? ''}`
+    const kb = `${b.klubber?.id ?? ''}|${b.tidslots?.haller?.id ?? b.tidslots?.hal_id ?? ''}|${b.tidslots?.ukedag ?? ''}|${b.ny_ukedag ?? ''}|${b.ny_fra_kl ?? ''}|${b.ny_til_kl ?? ''}|${b.kommentar ?? ''}`
+    if (ka !== kb) return ka.localeCompare(kb)
+    return timeToMin(a.tidslots?.fra_kl ?? '00:00') - timeToMin(b.tidslots?.fra_kl ?? '00:00')
+  })
+
+  const grupper: EndringGruppe[] = []
+  for (const e of sorted) {
+    const last = grupper[grupper.length - 1]
+    const sameKey =
+      last &&
+      last.klubb_id === (e.klubber?.id ?? '') &&
+      last.hal_id === (e.tidslots?.haller?.id ?? e.tidslots?.hal_id ?? '') &&
+      last.ukedag === (e.tidslots?.ukedag ?? '') &&
+      last.ny_ukedag === e.ny_ukedag &&
+      last.ny_fra_kl === e.ny_fra_kl &&
+      last.ny_til_kl === e.ny_til_kl &&
+      last.kommentar === e.kommentar &&
+      timeToMin(last.til_kl) === timeToMin(e.tidslots?.fra_kl ?? '00:00')
+
+    if (sameKey) {
+      last.til_kl = e.tidslots?.til_kl ?? last.til_kl
+      last.endring_ids.push(e.id)
+    } else {
+      grupper.push({
+        klubb_id: e.klubber?.id ?? '',
+        klubb_navn: e.klubber?.navn ?? '',
+        klubb_idrett: e.klubber?.idrett ?? null,
+        hal_id: e.tidslots?.haller?.id ?? e.tidslots?.hal_id ?? '',
+        hal_navn: e.tidslots?.haller?.navn ?? '',
+        ukedag: e.tidslots?.ukedag ?? '',
+        fra_kl: e.tidslots?.fra_kl ?? '',
+        til_kl: e.tidslots?.til_kl ?? '',
+        ny_ukedag: e.ny_ukedag,
+        ny_fra_kl: e.ny_fra_kl,
+        ny_til_kl: e.ny_til_kl,
+        kommentar: e.kommentar,
+        tidsstempel: e.tidsstempel,
+        endring_ids: [e.id],
+      })
+    }
+  }
+  return grupper
 }
 
 export interface VentelisteItem {
