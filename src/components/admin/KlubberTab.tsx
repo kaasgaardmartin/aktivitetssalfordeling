@@ -1,16 +1,19 @@
 'use client'
 
 import { useState } from 'react'
-import type { Klubb, Slot } from './types'
+import type { Klubb, Slot, Sesong } from './types'
 import { idrettColor, exportCSV } from './types'
 
 interface Props {
   klubber: Klubb[]
   slots: Slot[]
+  aktivSesong: Sesong | null
 }
 
-export default function KlubberTab({ klubber, slots }: Props) {
+export default function KlubberTab({ klubber, slots, aktivSesong }: Props) {
   const [search, setSearch] = useState('')
+  const [genererer, setGenererer] = useState<string | null>(null)
+  const [testLink, setTestLink] = useState<{ klubb: string; url: string } | null>(null)
 
   const filtered = klubber.filter(k =>
     !search ||
@@ -32,6 +35,35 @@ export default function KlubberTab({ klubber, slots }: Props) {
       ]
     })
     exportCSV('klubber-oversikt.csv', headers, rows)
+  }
+
+  async function genererTestLenke(klubb: Klubb) {
+    if (!aktivSesong) {
+      alert('Ingen aktiv sesong — kan ikke generere lenke')
+      return
+    }
+    setGenererer(klubb.id)
+    try {
+      const res = await fetch('/api/admin/test-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ klubb_id: klubb.id, sesong_id: aktivSesong.id }),
+      })
+      if (res.ok) {
+        const { url } = await res.json()
+        setTestLink({ klubb: klubb.navn, url })
+      } else {
+        const data = await res.json()
+        alert(`Feil: ${data.error || 'Kunne ikke generere lenke'}`)
+      }
+    } finally {
+      setGenererer(null)
+    }
+  }
+
+  async function kopierLenke() {
+    if (!testLink) return
+    await navigator.clipboard.writeText(testLink.url)
   }
 
   return (
@@ -56,6 +88,7 @@ export default function KlubberTab({ klubber, slots }: Props) {
                 <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-gray-600 text-right">Andel barn</th>
                 <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-gray-600 text-right">Timer/uke</th>
                 <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-gray-600 hidden sm:table-cell">E-post</th>
+                <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-gray-600 text-right">Test</th>
               </tr>
             </thead>
             <tbody>
@@ -78,6 +111,16 @@ export default function KlubberTab({ klubber, slots }: Props) {
                     <td className="px-4 py-2.5 text-right tabular-nums text-xs text-gray-700">{k.andel_barn != null ? `${k.andel_barn}%` : '–'}</td>
                     <td className="px-4 py-2.5 text-right tabular-nums text-xs font-semibold text-gray-900">{timerPerUke > 0 ? `${timerPerUke}t` : '–'}</td>
                     <td className="px-4 py-2.5 text-xs text-gray-600 truncate max-w-[180px] hidden sm:table-cell">{k.epost}</td>
+                    <td className="px-4 py-2.5 text-right">
+                      <button
+                        onClick={() => genererTestLenke(k)}
+                        disabled={genererer === k.id || !aktivSesong}
+                        className="btn text-[10px] px-2 py-1"
+                        title={!aktivSesong ? 'Ingen aktiv sesong' : 'Generer test-lenke'}
+                      >
+                        {genererer === k.id ? '...' : 'Logg inn'}
+                      </button>
+                    </td>
                   </tr>
                 )
               })}
@@ -86,6 +129,30 @@ export default function KlubberTab({ klubber, slots }: Props) {
           <div className="border-t border-gray-200 bg-gray-50 px-4 py-2.5 flex items-center justify-between">
             <span className="text-[10px] text-gray-600">{klubber.length} klubber totalt</span>
             <span className="text-[10px] text-gray-600">{(slots.filter(s => s.klubb_id).length * 0.5).toFixed(0)}t tildelt totalt</span>
+          </div>
+        </div>
+      )}
+
+      {/* Test-lenke modal */}
+      {testLink && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setTestLink(null)}>
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <p className="font-semibold text-gray-900">Test-lenke for {testLink.klubb}</p>
+              <button onClick={() => setTestLink(null)} className="text-gray-600 text-xl leading-none">&times;</button>
+            </div>
+            <p className="text-xs text-gray-600">
+              Åpne denne lenken i et inkognito-vindu eller en annen nettleser for å logge inn som klubben uten å miste din admin-økt.
+            </p>
+            <div className="rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 break-all text-[11px] font-mono text-gray-800">
+              {testLink.url}
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button onClick={kopierLenke} className="btn text-xs">Kopier lenke</button>
+              <a href={testLink.url} target="_blank" rel="noopener noreferrer" className="btn-primary text-xs">
+                Åpne i ny fane
+              </a>
+            </div>
           </div>
         </div>
       )}

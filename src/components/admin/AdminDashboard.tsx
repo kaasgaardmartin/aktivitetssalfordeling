@@ -489,7 +489,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
       {activeTab === 'soknader' && <SoknaderTab soknader={soknader.filter(s => s.status === 'venter')} onHandleSoknad={handleSoknad} />}
       {activeTab === 'endringer' && <EndringerTab endringer={endringer} onHandleEndring={handleEndring} />}
       {activeTab === 'venteliste' && <VentelisteTab venteliste={venteliste} />}
-      {activeTab === 'klubber' && <KlubberTab klubber={klubber} slots={slots} />}
+      {activeTab === 'klubber' && <KlubberTab klubber={klubber} slots={slots} aktivSesong={aktivSesong} />}
 
       {/* ── SLOT MODAL (Rediger) ── */}
       {slotModal && (
