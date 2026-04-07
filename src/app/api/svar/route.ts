@@ -52,7 +52,8 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ ok: true })
 }
 
-// POST /api/svar/bekreft-alle — confirm all slots unchanged
+// PUT /api/svar — confirm all REMAINING slots as unchanged
+// (does not overwrite slots that already have an existing svar, e.g. endre/si_opp)
 export async function PUT(request: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Ikke innlogget' }, { status: 401 })
@@ -68,21 +69,33 @@ export async function PUT(request: NextRequest) {
 
   if (slotsErr) return NextResponse.json({ error: slotsErr.message }, { status: 500 })
 
-  const upserts = (slots ?? []).map(s => ({
-    sesong_id: session.sesong_id,
-    klubb_id: session.klubb_id,
-    tidslot_id: s.id,
-    handling: 'bekreft' as const,
-  }))
+  // Get existing svar for this club in this season — disse skal ikke overstyres
+  const { data: existing, error: existErr } = await supabase
+    .from('svar')
+    .select('tidslot_id')
+    .eq('klubb_id', session.klubb_id)
+    .eq('sesong_id', session.sesong_id)
 
-  if (upserts.length > 0) {
-    const { error } = await supabase
-      .from('svar')
-      .upsert(upserts, { onConflict: 'sesong_id,klubb_id,tidslot_id' })
+  if (existErr) return NextResponse.json({ error: existErr.message }, { status: 500 })
+
+  const existingIds = new Set((existing ?? []).map(r => r.tidslot_id))
+
+  // Bare bekreft slots som mangler svar
+  const inserts = (slots ?? [])
+    .filter(s => !existingIds.has(s.id))
+    .map(s => ({
+      sesong_id: session.sesong_id,
+      klubb_id: session.klubb_id,
+      tidslot_id: s.id,
+      handling: 'bekreft' as const,
+    }))
+
+  if (inserts.length > 0) {
+    const { error } = await supabase.from('svar').insert(inserts)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, bekreftet: upserts.length })
+  return NextResponse.json({ ok: true, bekreftet: inserts.length })
 }
 
 // PATCH /api/svar — admin handles a change request (godkjenn/avslå)
