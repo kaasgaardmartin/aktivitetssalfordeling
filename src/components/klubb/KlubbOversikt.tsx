@@ -93,14 +93,21 @@ export default function KlubbOversikt({
   regler: ReglerInfo
 }) {
   const [activeTab, setActiveTab] = useState<'tider' | 'sok' | 'regler'>('tider')
-  const [svar, setSvar] = useState<Record<string, Svar | { handling: string }>>(
+  // savedSvar = det som ligger i databasen (fra initialSvar)
+  const [savedSvar, setSavedSvar] = useState<Record<string, Svar | { handling: string }>>(
     Object.fromEntries(initialSvar.map(s => [s.tidslot_id, s]))
   )
+  // pendingSvar = lokale, ubekreftede endringer som venter på "Bekreft og lagre"
+  const [pendingSvar, setPendingSvar] = useState<Record<string, { handling: 'endre' | 'si_opp' | 'bekreft'; ny_ukedag?: string; ny_fra_kl?: string; ny_til_kl?: string; kommentar?: string }>>({})
   const [allebekreftet, setAllebekreftet] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const [changeModal, setChangeModal] = useState<Block | null>(null)
   const [changeForm, setChangeForm] = useState({ ny_ukedag: '', ny_fra_kl: '', ny_til_kl: '', kommentar: '' })
-  const [busyBlock, setBusyBlock] = useState<string | null>(null)
+
+  // Kombinert visning: pending overstyrer saved
+  const svar: Record<string, Svar | { handling: string }> = { ...savedSvar, ...pendingSvar }
 
   // Group all slots into blocks, then group blocks per hall
   const allBlocks = groupSlotsIntoBlocks(slots)
@@ -121,43 +128,76 @@ export default function KlubbOversikt({
   const totalSlots = slots.length
   const totalTimer = totalSlots * 0.5
   const endretCount = allBlocks.filter(b => blockStatus(b, svar) !== 'uendret').length
+  const pendingCount = Object.keys(pendingSvar).length
 
-  async function bekreftAlle() {
-    startTransition(async () => {
-      const res = await fetch('/api/svar', { method: 'PUT' })
-      if (res.ok) {
-        const newSvar: Record<string, { handling: string }> = {}
-        slots.forEach(s => { newSvar[s.id] = { handling: 'bekreft' } })
-        setSvar(newSvar)
-        setAllebekreftet(true)
-      }
+  // Lokal: marker blokk som endret / sagt opp (ingen API-kall)
+  function markBlockLocal(block: Block, handling: 'endre' | 'si_opp', extra?: { ny_ukedag?: string; ny_fra_kl?: string; ny_til_kl?: string; kommentar?: string }) {
+    setPendingSvar(prev => {
+      const next = { ...prev }
+      block.slot_ids.forEach(id => { next[id] = { handling, ...extra } })
+      return next
     })
+    setAllebekreftet(false)
   }
 
-  // Send svar for ALL slot ids in a block
-  async function sendBlockSvar(block: Block, handling: 'bekreft' | 'endre' | 'si_opp', extra?: object) {
-    setBusyBlock(block.slot_ids[0])
+  // Lokal: angre → fjern pending OG hvis saved hadde handling, send bekreft
+  function angreBlockLocal(block: Block) {
+    setPendingSvar(prev => {
+      const next = { ...prev }
+      block.slot_ids.forEach(id => {
+        // Hvis det allerede er lagret noe ikke-bekreft i db, sett pending til bekreft
+        const saved = savedSvar[id]
+        if (saved && saved.handling !== 'bekreft') {
+          next[id] = { handling: 'bekreft' }
+        } else {
+          delete next[id]
+        }
+      })
+      return next
+    })
+    setAllebekreftet(false)
+  }
+
+  // Hovedknapp: lagre alt ventende + bekreft alle andre uendret
+  async function bekreftOgLagre() {
+    setIsSaving(true)
+    setSaveError(null)
     try {
-      await Promise.all(block.slot_ids.map(slotId =>
-        fetch('/api/svar', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tidslot_id: slotId, handling, ...extra }),
-        })
-      ))
-      setSvar(prev => {
+      // 1) Send alle pending svar (endre/si_opp/angre→bekreft)
+      const pendingEntries = Object.entries(pendingSvar)
+      if (pendingEntries.length > 0) {
+        const results = await Promise.all(pendingEntries.map(([tidslot_id, v]) =>
+          fetch('/api/svar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tidslot_id, ...v }),
+          })
+        ))
+        if (!results.every(r => r.ok)) {
+          throw new Error('Klarte ikke lagre alle endringer')
+        }
+      }
+
+      // 2) Bekreft resten (PUT = bekreft alle som ikke har svar)
+      const res = await fetch('/api/svar', { method: 'PUT' })
+      if (!res.ok) throw new Error('Klarte ikke bekrefte resterende tider')
+
+      // 3) Flytt pending → saved
+      setSavedSvar(prev => {
         const next = { ...prev }
-        block.slot_ids.forEach(id => { next[id] = { handling, ...(extra as object) } as any })
+        Object.entries(pendingSvar).forEach(([id, v]) => { next[id] = v as any })
+        slots.forEach(s => {
+          if (!next[s.id]) next[s.id] = { handling: 'bekreft' }
+        })
         return next
       })
+      setPendingSvar({})
+      setAllebekreftet(true)
+    } catch (err: any) {
+      setSaveError(err.message || 'Noe gikk galt')
     } finally {
-      setBusyBlock(null)
+      setIsSaving(false)
     }
-  }
-
-  // Reset block to "uendret" (undo si_opp / endre)
-  async function angreBlock(block: Block) {
-    await sendBlockSvar(block, 'bekreft')
   }
 
   function openEndreModal(block: Block) {
@@ -212,26 +252,15 @@ export default function KlubbOversikt({
           <>
             {/* Banner */}
             <div className="card p-5">
-              <div className="flex items-start justify-between gap-4 mb-4">
+              <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-base font-semibold text-gray-900">{sesong.navn}</p>
-                  <p className="text-sm text-gray-600 mt-0.5">Gjennomgå tidene dine — endre det du ønsker, bekreft resten</p>
+                  <p className="text-sm text-gray-600 mt-0.5">Gjennomgå tidene dine — marker det du ønsker å endre eller si opp, og lagre nederst.</p>
                 </div>
                 <span className={`badge whitespace-nowrap ${dagerIgjen < 5 ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
                   Frist: {frist.toLocaleDateString('nb-NO', { day: 'numeric', month: 'long' })}
                 </span>
               </div>
-              <button
-                onClick={bekreftAlle}
-                disabled={isPending || allebekreftet}
-                className={`w-full rounded-lg px-4 py-3 text-sm font-semibold transition-colors ${
-                  allebekreftet
-                    ? 'bg-green-800 text-green-100 cursor-default'
-                    : 'bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60'
-                }`}
-              >
-                {allebekreftet ? '✓ Alle tider bekreftet' : isPending ? 'Bekrefter...' : '✓ Bekreft alle tider uendret'}
-              </button>
             </div>
 
             {/* Stats */}
@@ -276,9 +305,9 @@ export default function KlubbOversikt({
                     {blocks.map((block) => {
                       const status = blockStatus(block, svar)
                       const blockKey = block.slot_ids[0]
-                      const isBusy = busyBlock === blockKey
+                      const hasPending = block.slot_ids.some(id => pendingSvar[id])
                       return (
-                        <div key={blockKey} className="px-4 py-3">
+                        <div key={blockKey} className={`px-4 py-3 ${hasPending ? 'bg-amber-50/40' : ''}`}>
                           <div className="flex items-start gap-3">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-baseline gap-2 flex-wrap">
@@ -286,10 +315,11 @@ export default function KlubbOversikt({
                                 <span className="font-mono text-sm text-gray-700">{formatTime(block.fra_kl)}–{formatTime(block.til_kl)}</span>
                                 <span className="text-xs text-gray-600">({formatVarighet(block.varighet_min)})</span>
                               </div>
-                              <div className="mt-1">
+                              <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                                 {status === 'uendret' && <span className="badge bg-green-50 text-green-700">Uendret</span>}
                                 {status === 'endret' && <span className="badge bg-blue-50 text-blue-700">Endret</span>}
                                 {status === 'sagt_opp' && <span className="badge bg-gray-100 text-gray-600">Sagt opp</span>}
+                                {hasPending && <span className="badge bg-amber-100 text-amber-800">Ulagret</span>}
                               </div>
                             </div>
                             <div className="flex flex-col gap-1.5 shrink-0">
@@ -297,7 +327,6 @@ export default function KlubbOversikt({
                                 <>
                                   <button
                                     onClick={() => openEndreModal(block)}
-                                    disabled={isBusy}
                                     className="btn text-xs px-3 py-1"
                                   >
                                     Endre
@@ -305,10 +334,9 @@ export default function KlubbOversikt({
                                   <button
                                     onClick={() => {
                                       if (confirm(`Si opp ${formatUkedag(block.ukedag)} ${formatTime(block.fra_kl)}–${formatTime(block.til_kl)}?`)) {
-                                        sendBlockSvar(block, 'si_opp')
+                                        markBlockLocal(block, 'si_opp')
                                       }
                                     }}
-                                    disabled={isBusy}
                                     className="btn btn-danger text-xs px-3 py-1"
                                   >
                                     Si opp
@@ -316,8 +344,7 @@ export default function KlubbOversikt({
                                 </>
                               ) : (
                                 <button
-                                  onClick={() => angreBlock(block)}
-                                  disabled={isBusy}
+                                  onClick={() => angreBlockLocal(block)}
                                   className="btn text-xs px-3 py-1"
                                 >
                                   Angre
@@ -339,6 +366,44 @@ export default function KlubbOversikt({
             {hallerMap.size === 0 && (
               <div className="card p-8 text-center">
                 <p className="text-sm text-gray-600">Ingen treningstider tildelt for denne sesongen.</p>
+              </div>
+            )}
+
+            {/* Bunn-panel: Bekreft og lagre */}
+            {hallerMap.size > 0 && (
+              <div className="card p-5 space-y-3 border-gray-300">
+                <div>
+                  <p className="font-semibold text-gray-900">Ferdig med gjennomgangen?</p>
+                  <p className="text-sm text-gray-600 mt-0.5">
+                    {pendingCount > 0
+                      ? <>Du har <strong>{pendingCount}</strong> ulagrede {pendingCount === 1 ? 'endring' : 'endringer'}. Klikk under for å sende disse og bekrefte resten av tidene som uendret.</>
+                      : allebekreftet
+                        ? 'Alle tider er bekreftet og lagret.'
+                        : 'Ingen endringer lagt inn. Klikk under for å bekrefte alle tider uendret.'}
+                  </p>
+                </div>
+                {saveError && (
+                  <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+                    {saveError}
+                  </div>
+                )}
+                <button
+                  onClick={bekreftOgLagre}
+                  disabled={isSaving || (allebekreftet && pendingCount === 0)}
+                  className={`w-full rounded-lg px-4 py-3 text-sm font-semibold transition-colors ${
+                    allebekreftet && pendingCount === 0
+                      ? 'bg-green-800 text-green-100 cursor-default'
+                      : 'bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60'
+                  }`}
+                >
+                  {isSaving
+                    ? 'Lagrer...'
+                    : allebekreftet && pendingCount === 0
+                      ? '✓ Alt er lagret'
+                      : pendingCount > 0
+                        ? `✓ Lagre ${pendingCount} ${pendingCount === 1 ? 'endring' : 'endringer'} og bekreft resten`
+                        : '✓ Bekreft alle tider uendret'}
+                </button>
               </div>
             )}
           </>
@@ -399,20 +464,20 @@ export default function KlubbOversikt({
               </div>
             </div>
             <p className="text-[11px] text-gray-600">
-              Endringen gjelder hele blokken og må godkjennes av administrator.
+              Endringen gjelder hele blokken. Den sendes til administrator når du klikker "Bekreft og lagre" nederst.
             </p>
             <div className="flex gap-2 justify-end">
               <button onClick={() => setChangeModal(null)} className="btn">Avbryt</button>
-              <button onClick={async () => {
+              <button onClick={() => {
                 if (!changeModal) return
-                await sendBlockSvar(changeModal, 'endre', {
+                markBlockLocal(changeModal, 'endre', {
                   ny_ukedag: changeForm.ny_ukedag,
                   ny_fra_kl: changeForm.ny_fra_kl + ':00',
                   ny_til_kl: changeForm.ny_til_kl + ':00',
                   kommentar: changeForm.kommentar,
                 })
                 setChangeModal(null)
-              }} className="btn-primary">Send endringsforslag</button>
+              }} className="btn-primary">Legg til endring</button>
             </div>
           </div>
         </div>
