@@ -11,10 +11,77 @@ type Slot = Database['public']['Tables']['tidslots']['Row'] & {
 type Svar = Database['public']['Tables']['svar']['Row']
 type ReglerInfo = Database['public']['Tables']['regler_info']['Row'] | null
 
-const UKEDAG_ORDER = ['mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag']
+const UKEDAG_ORDER = ['mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lordag', 'sondag']
 
 function formatTime(t: string) { return t.slice(0, 5) }
 function formatUkedag(d: string) { return d.charAt(0).toUpperCase() + d.slice(1) }
+function timeToMinutes(t: string) {
+  const [h, m] = t.slice(0, 5).split(':').map(Number)
+  return h * 60 + m
+}
+
+// A block represents a contiguous group of 30-min slots for the same hall + ukedag
+interface Block {
+  hal_id: string
+  hal_navn: string
+  ukedag: string
+  fra_kl: string  // HH:MM:SS
+  til_kl: string  // HH:MM:SS
+  varighet_min: number
+  slot_ids: string[]  // all the 30-min slot ids in this block
+}
+
+function groupSlotsIntoBlocks(slots: Slot[]): Block[] {
+  // Sort by hall, ukedag (custom order), then fra_kl
+  const sorted = [...slots].sort((a, b) => {
+    if (a.hal_id !== b.hal_id) return a.hal_id.localeCompare(b.hal_id)
+    const dayDiff = UKEDAG_ORDER.indexOf(a.ukedag) - UKEDAG_ORDER.indexOf(b.ukedag)
+    if (dayDiff !== 0) return dayDiff
+    return timeToMinutes(a.fra_kl) - timeToMinutes(b.fra_kl)
+  })
+
+  const blocks: Block[] = []
+  for (const slot of sorted) {
+    const last = blocks[blocks.length - 1]
+    const isContiguous =
+      last &&
+      last.hal_id === slot.hal_id &&
+      last.ukedag === slot.ukedag &&
+      timeToMinutes(last.til_kl) === timeToMinutes(slot.fra_kl)
+
+    if (isContiguous) {
+      last.til_kl = slot.til_kl
+      last.varighet_min += 30
+      last.slot_ids.push(slot.id)
+    } else {
+      blocks.push({
+        hal_id: slot.hal_id,
+        hal_navn: slot.haller?.navn ?? 'Ukjent',
+        ukedag: slot.ukedag,
+        fra_kl: slot.fra_kl,
+        til_kl: slot.til_kl,
+        varighet_min: 30,
+        slot_ids: [slot.id],
+      })
+    }
+  }
+  return blocks
+}
+
+function formatVarighet(min: number) {
+  const t = min / 60
+  if (Number.isInteger(t)) return `${t}t`
+  return `${t.toFixed(1).replace('.', ',')}t`
+}
+
+type BlockStatus = 'uendret' | 'endret' | 'sagt_opp'
+
+function blockStatus(block: Block, svar: Record<string, Svar | { handling: string }>): BlockStatus {
+  const statuses = block.slot_ids.map(id => svar[id]?.handling ?? 'bekreft')
+  if (statuses.every(s => s === 'si_opp')) return 'sagt_opp'
+  if (statuses.some(s => s === 'endre')) return 'endret'
+  return 'uendret'
+}
 
 export default function KlubbOversikt({
   klubb, sesong, slots, svar: initialSvar, regler,
@@ -26,48 +93,81 @@ export default function KlubbOversikt({
   regler: ReglerInfo
 }) {
   const [activeTab, setActiveTab] = useState<'tider' | 'sok' | 'regler'>('tider')
-  const [svar, setSvar] = useState<Record<string, Svar>>(
+  const [svar, setSvar] = useState<Record<string, Svar | { handling: string }>>(
     Object.fromEntries(initialSvar.map(s => [s.tidslot_id, s]))
   )
   const [allebekreftet, setAllebekreftet] = useState(false)
   const [isPending, startTransition] = useTransition()
-  const [changeModal, setChangeModal] = useState<Slot | null>(null)
+  const [changeModal, setChangeModal] = useState<Block | null>(null)
   const [changeForm, setChangeForm] = useState({ ny_ukedag: '', ny_fra_kl: '', ny_til_kl: '', kommentar: '' })
+  const [busyBlock, setBusyBlock] = useState<string | null>(null)
 
-  // Group slots by hall
-  const hallerMap = new Map<string, { hal: NonNullable<Slot['haller']>; slots: Slot[] }>()
-  slots.forEach(s => {
-    if (!s.haller) return
-    if (!hallerMap.has(s.hal_id)) hallerMap.set(s.hal_id, { hal: s.haller, slots: [] })
-    hallerMap.get(s.hal_id)!.slots.push(s)
-  })
+  // Group all slots into blocks, then group blocks per hall
+  const allBlocks = groupSlotsIntoBlocks(slots)
+  const hallerMap = new Map<string, { hal_id: string; hal_navn: string; hal: NonNullable<Slot['haller']> | null; blocks: Block[] }>()
+  for (const block of allBlocks) {
+    if (!hallerMap.has(block.hal_id)) {
+      const slot = slots.find(s => s.hal_id === block.hal_id)
+      hallerMap.set(block.hal_id, {
+        hal_id: block.hal_id,
+        hal_navn: block.hal_navn,
+        hal: slot?.haller ?? null,
+        blocks: [],
+      })
+    }
+    hallerMap.get(block.hal_id)!.blocks.push(block)
+  }
 
   const totalSlots = slots.length
-  const endretCount = Object.values(svar).filter(s => s.handling !== 'bekreft').length
+  const totalTimer = totalSlots * 0.5
+  const endretCount = allBlocks.filter(b => blockStatus(b, svar) !== 'uendret').length
 
   async function bekreftAlle() {
     startTransition(async () => {
       const res = await fetch('/api/svar', { method: 'PUT' })
       if (res.ok) {
-        const newSvar: Record<string, Svar> = {}
-        slots.forEach(s => {
-          newSvar[s.id] = { ...({} as Svar), tidslot_id: s.id, handling: 'bekreft' }
-        })
+        const newSvar: Record<string, { handling: string }> = {}
+        slots.forEach(s => { newSvar[s.id] = { handling: 'bekreft' } })
         setSvar(newSvar)
         setAllebekreftet(true)
       }
     })
   }
 
-  async function sendSvar(slotId: string, handling: 'bekreft' | 'endre' | 'si_opp', extra?: object) {
-    const res = await fetch('/api/svar', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tidslot_id: slotId, handling, ...extra }),
-    })
-    if (res.ok) {
-      setSvar(prev => ({ ...prev, [slotId]: { ...({} as Svar), tidslot_id: slotId, handling, ...extra } }))
+  // Send svar for ALL slot ids in a block
+  async function sendBlockSvar(block: Block, handling: 'bekreft' | 'endre' | 'si_opp', extra?: object) {
+    setBusyBlock(block.slot_ids[0])
+    try {
+      await Promise.all(block.slot_ids.map(slotId =>
+        fetch('/api/svar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tidslot_id: slotId, handling, ...extra }),
+        })
+      ))
+      setSvar(prev => {
+        const next = { ...prev }
+        block.slot_ids.forEach(id => { next[id] = { handling, ...(extra as object) } as any })
+        return next
+      })
+    } finally {
+      setBusyBlock(null)
     }
+  }
+
+  // Reset block to "uendret" (undo si_opp / endre)
+  async function angreBlock(block: Block) {
+    await sendBlockSvar(block, 'bekreft')
+  }
+
+  function openEndreModal(block: Block) {
+    setChangeModal(block)
+    setChangeForm({
+      ny_ukedag: block.ukedag,
+      ny_fra_kl: formatTime(block.fra_kl),
+      ny_til_kl: formatTime(block.til_kl),
+      kommentar: '',
+    })
   }
 
   const frist = new Date(sesong.frist)
@@ -76,25 +176,25 @@ export default function KlubbOversikt({
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Topbar */}
-      <div className="sticky top-0 z-20 flex h-13 items-center justify-between border-b border-gray-200 bg-white px-5">
-        <div className="flex items-center gap-3">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-900">
+      <div className="sticky top-0 z-20 flex h-13 items-center justify-between border-b border-gray-200 bg-white px-4 md:px-5">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gray-900">
             <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 fill-white"><path d="M8 2L14 6V10L8 14L2 10V6L8 2Z" /></svg>
           </div>
-          <span className="text-sm font-semibold text-gray-900">Aktivitetssaler Oslo</span>
-          <span className="h-4 w-px bg-gray-200" />
-          <span className="text-sm text-gray-600">{klubb.navn}</span>
+          <span className="text-sm font-semibold text-gray-900 hidden sm:inline">Aktivitetssaler Oslo</span>
+          <span className="h-4 w-px bg-gray-200 hidden sm:inline" />
+          <span className="text-sm text-gray-700 truncate">{klubb.navn}</span>
         </div>
-        <span className="text-xs text-gray-600">{klubb.idrett}</span>
+        <span className="text-xs text-gray-600 shrink-0 hidden sm:inline">{klubb.idrett}</span>
       </div>
 
       {/* Nav tabs */}
-      <div className="flex border-b border-gray-200 bg-white px-5">
+      <div className="flex border-b border-gray-200 bg-white px-4 md:px-5 overflow-x-auto">
         {(['tider', 'sok', 'regler'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
+            className={`whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
               activeTab === tab
                 ? 'border-gray-900 text-gray-900'
                 : 'border-transparent text-gray-600 hover:text-gray-700'
@@ -138,7 +238,7 @@ export default function KlubbOversikt({
             <div className="grid grid-cols-3 gap-2.5">
               {[
                 { val: hallerMap.size, lbl: 'Lokaler' },
-                { val: `${(totalSlots * 0.5).toFixed(0)}t`, lbl: 'Timer/uke' },
+                { val: formatVarighet(totalTimer * 60), lbl: 'Timer/uke' },
                 { val: endretCount, lbl: 'Endringer' },
               ].map(s => (
                 <div key={s.lbl} className="card px-4 py-3">
@@ -149,50 +249,98 @@ export default function KlubbOversikt({
             </div>
 
             {/* Hall cards */}
-            {Array.from(hallerMap.values()).map(({ hal, slots: hSlots }) => (
-              <div key={hal.id} className="card overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-200">
-                  <p className="font-semibold text-gray-900">{hal.navn}</p>
-                  <div className="flex gap-2 mt-1 flex-wrap">
-                    {hal.underlag && <span className="badge bg-gray-100 text-gray-600">{hal.underlag}</span>}
-                    {hal.stengedager && <span className="badge bg-amber-50 text-amber-700">Stengt: {hal.stengedager}</span>}
+            {Array.from(hallerMap.values()).map(({ hal_id, hal_navn, hal, blocks }) => {
+              const totalMin = blocks.reduce((sum, b) => sum + b.varighet_min, 0)
+              return (
+                <div key={hal_id} className="card overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-200">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-gray-900">{hal_navn}</p>
+                        <div className="flex gap-2 mt-1 flex-wrap">
+                          {hal?.underlag && <span className="badge bg-gray-100 text-gray-600">{hal.underlag}</span>}
+                          {hal?.adresse && <span className="badge bg-gray-100 text-gray-600">{hal.adresse}</span>}
+                          {hal?.stengedager && <span className="badge bg-amber-50 text-amber-700">Stengt: {hal.stengedager}</span>}
+                        </div>
+                        {hal?.merknader && (
+                          <p className="mt-1.5 text-xs text-gray-600">{hal.merknader}</p>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-base font-semibold tabular-nums text-gray-900">{formatVarighet(totalMin)}</p>
+                        <p className="text-[10px] text-gray-600">{blocks.length} økt{blocks.length !== 1 ? 'er' : ''}</p>
+                      </div>
+                    </div>
                   </div>
-                  {hal.merknader && (
-                    <p className="mt-1.5 text-xs text-gray-600">{hal.merknader}</p>
-                  )}
-                </div>
-                <div className="divide-y divide-gray-100">
-                  {hSlots
-                    .sort((a, b) => UKEDAG_ORDER.indexOf(a.ukedag) - UKEDAG_ORDER.indexOf(b.ukedag))
-                    .map(slot => {
-                      const s = svar[slot.id]
+                  <div className="divide-y divide-gray-100">
+                    {blocks.map((block) => {
+                      const status = blockStatus(block, svar)
+                      const blockKey = block.slot_ids[0]
+                      const isBusy = busyBlock === blockKey
                       return (
-                        <div key={slot.id} className="flex items-center gap-3 px-4 py-2.5">
-                          <span className="w-20 text-sm font-medium text-gray-900">{formatUkedag(slot.ukedag)}</span>
-                          <span className="w-24 font-mono text-xs text-gray-600">{formatTime(slot.fra_kl)}–{formatTime(slot.til_kl)}</span>
-                          <span className="flex-1 text-sm text-gray-600">{klubb.idrett}</span>
-                          <div className="flex gap-1.5">
-                            {!s || s.handling === 'bekreft' ? (
-                              <>
-                                <span className="badge bg-green-50 text-green-700">Uendret</span>
-                                <button onClick={() => { setChangeModal(slot); setChangeForm({ ny_ukedag: slot.ukedag, ny_fra_kl: formatTime(slot.fra_kl), ny_til_kl: formatTime(slot.til_kl), kommentar: '' }) }} className="btn text-xs px-2 py-1">Endre</button>
-                                <button onClick={() => sendSvar(slot.id, 'si_opp')} className="btn btn-danger text-xs px-2 py-1">Si opp</button>
-                              </>
-                            ) : s.handling === 'endre' ? (
-                              <span className="badge bg-blue-50 text-blue-700">Endret</span>
-                            ) : (
-                              <span className="badge bg-gray-100 text-gray-600">Sagt opp</span>
-                            )}
+                        <div key={blockKey} className="px-4 py-3">
+                          <div className="flex items-start gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-baseline gap-2 flex-wrap">
+                                <span className="text-sm font-semibold text-gray-900">{formatUkedag(block.ukedag)}</span>
+                                <span className="font-mono text-sm text-gray-700">{formatTime(block.fra_kl)}–{formatTime(block.til_kl)}</span>
+                                <span className="text-xs text-gray-600">({formatVarighet(block.varighet_min)})</span>
+                              </div>
+                              <div className="mt-1">
+                                {status === 'uendret' && <span className="badge bg-green-50 text-green-700">Uendret</span>}
+                                {status === 'endret' && <span className="badge bg-blue-50 text-blue-700">Endret</span>}
+                                {status === 'sagt_opp' && <span className="badge bg-gray-100 text-gray-600">Sagt opp</span>}
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-1.5 shrink-0">
+                              {status === 'uendret' ? (
+                                <>
+                                  <button
+                                    onClick={() => openEndreModal(block)}
+                                    disabled={isBusy}
+                                    className="btn text-xs px-3 py-1"
+                                  >
+                                    Endre
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      if (confirm(`Si opp ${formatUkedag(block.ukedag)} ${formatTime(block.fra_kl)}–${formatTime(block.til_kl)}?`)) {
+                                        sendBlockSvar(block, 'si_opp')
+                                      }
+                                    }}
+                                    disabled={isBusy}
+                                    className="btn btn-danger text-xs px-3 py-1"
+                                  >
+                                    Si opp
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  onClick={() => angreBlock(block)}
+                                  disabled={isBusy}
+                                  className="btn text-xs px-3 py-1"
+                                >
+                                  Angre
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       )
                     })}
+                  </div>
+                  <div className="flex gap-2 border-t border-gray-200 px-4 py-2.5">
+                    <button onClick={() => setActiveTab('sok')} className="btn text-xs">+ Søk om mer tid</button>
+                  </div>
                 </div>
-                <div className="flex gap-2 border-t border-gray-200 px-4 py-2.5">
-                  <button onClick={() => setActiveTab('sok')} className="btn text-xs">+ Søk om mer tid</button>
-                </div>
+              )
+            })}
+
+            {hallerMap.size === 0 && (
+              <div className="card p-8 text-center">
+                <p className="text-sm text-gray-600">Ingen treningstider tildelt for denne sesongen.</p>
               </div>
-            ))}
+            )}
           </>
         )}
 
@@ -219,34 +367,30 @@ export default function KlubbOversikt({
 
       {/* ── ENDRE MODAL ── */}
       {changeModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30 p-4" onClick={() => setChangeModal(null)}>
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 space-y-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <p className="font-semibold text-gray-900">Endre tid</p>
-              <button onClick={() => setChangeModal(null)} className="text-gray-600 hover:text-gray-600 text-xl leading-none">×</button>
+              <p className="font-semibold text-gray-900">Foreslå endring</p>
+              <button onClick={() => setChangeModal(null)} className="text-gray-600 hover:text-gray-700 text-xl leading-none">&times;</button>
             </div>
             <p className="text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-2">
-              {changeModal.haller?.navn} — {formatUkedag(changeModal.ukedag)} {formatTime(changeModal.fra_kl)}–{formatTime(changeModal.til_kl)}
+              {changeModal.hal_navn} — {formatUkedag(changeModal.ukedag)} {formatTime(changeModal.fra_kl)}–{formatTime(changeModal.til_kl)} ({formatVarighet(changeModal.varighet_min)})
             </p>
             <div className="space-y-3">
               <div>
                 <label className="label mb-1">Ønsket ukedag</label>
                 <select className="input" value={changeForm.ny_ukedag} onChange={e => setChangeForm(f => ({ ...f, ny_ukedag: e.target.value }))}>
-                  {UKEDAG_ORDER.map(d => <option key={d} value={d}>{formatUkedag(d)}</option>)}
+                  {UKEDAG_ORDER.slice(0, 5).map(d => <option key={d} value={d}>{formatUkedag(d)}</option>)}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="label mb-1">Fra kl.</label>
-                  <select className="input" value={changeForm.ny_fra_kl} onChange={e => setChangeForm(f => ({ ...f, ny_fra_kl: e.target.value }))}>
-                    {['15:00','15:30','16:00','16:30','17:00','17:30','18:00','18:30','19:00'].map(t => <option key={t}>{t}</option>)}
-                  </select>
+                  <input type="time" step="1800" className="input" value={changeForm.ny_fra_kl} onChange={e => setChangeForm(f => ({ ...f, ny_fra_kl: e.target.value }))} />
                 </div>
                 <div>
                   <label className="label mb-1">Til kl.</label>
-                  <select className="input" value={changeForm.ny_til_kl} onChange={e => setChangeForm(f => ({ ...f, ny_til_kl: e.target.value }))}>
-                    {['15:30','16:00','16:30','17:00','17:30','18:00','18:30','19:00','19:30','20:00'].map(t => <option key={t}>{t}</option>)}
-                  </select>
+                  <input type="time" step="1800" className="input" value={changeForm.ny_til_kl} onChange={e => setChangeForm(f => ({ ...f, ny_til_kl: e.target.value }))} />
                 </div>
               </div>
               <div>
@@ -254,17 +398,21 @@ export default function KlubbOversikt({
                 <textarea className="input h-16 resize-none" placeholder="Forklar ønsket endring..." value={changeForm.kommentar} onChange={e => setChangeForm(f => ({ ...f, kommentar: e.target.value }))} />
               </div>
             </div>
+            <p className="text-[11px] text-gray-600">
+              Endringen gjelder hele blokken og må godkjennes av administrator.
+            </p>
             <div className="flex gap-2 justify-end">
               <button onClick={() => setChangeModal(null)} className="btn">Avbryt</button>
               <button onClick={async () => {
-                await sendSvar(changeModal.id, 'endre', {
+                if (!changeModal) return
+                await sendBlockSvar(changeModal, 'endre', {
                   ny_ukedag: changeForm.ny_ukedag,
                   ny_fra_kl: changeForm.ny_fra_kl + ':00',
                   ny_til_kl: changeForm.ny_til_kl + ':00',
                   kommentar: changeForm.kommentar,
                 })
                 setChangeModal(null)
-              }} className="btn-primary">Lagre endring</button>
+              }} className="btn-primary">Send endringsforslag</button>
             </div>
           </div>
         </div>
@@ -304,7 +452,10 @@ function SokMerTid({ sesongId }: { sesongId: string }) {
   }
 
   const DAYS = ['alle', 'mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag']
-  const filtered = dagFilter === 'alle' ? slots : slots.filter(s => s.ukedag === dagFilter)
+
+  // Group ledige slots into blocks per hall+ukedag (consecutive)
+  const filtered = dagFilter === 'alle' ? slots : slots.filter((s: any) => s.ukedag === dagFilter)
+  const ledigeBlocks = groupSlotsIntoBlocks(filtered as Slot[])
 
   return (
     <div className="space-y-4">
@@ -321,30 +472,33 @@ function SokMerTid({ sesongId }: { sesongId: string }) {
             </button>
           ))}
         </div>
-        <span className="ml-auto text-xs text-gray-600">{filtered.length} ledige</span>
+        <span className="ml-auto text-xs text-gray-600">{ledigeBlocks.length} ledige blokker</span>
       </div>
 
-      {/* Slot list */}
-      {filtered.length === 0 ? (
-        <p className="text-center text-sm text-gray-600 py-8">Ingen ledige slots</p>
-      ) : filtered.map((slot: any) => (
-        <div key={slot.id}
-          onClick={() => setSelected(selected?.id === slot.id ? null : slot)}
-          className={`card p-4 cursor-pointer transition-all ${selected?.id === slot.id ? 'border-gray-900' : 'hover:border-gray-300'}`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-semibold text-sm text-gray-900">{slot.haller?.navn}</p>
-              <div className="flex gap-2 mt-1">
-                <span className="text-xs font-mono text-gray-600">{slot.ukedag.charAt(0).toUpperCase() + slot.ukedag.slice(1)}  {formatTime(slot.fra_kl)}–{formatTime(slot.til_kl)}</span>
-                {slot.haller?.underlag && <span className="badge bg-gray-100 text-gray-600">{slot.haller.underlag}</span>}
+      {/* Block list */}
+      {ledigeBlocks.length === 0 ? (
+        <p className="text-center text-sm text-gray-600 py-8">Ingen ledige tider</p>
+      ) : ledigeBlocks.map((block) => {
+        const isSelected = selected?.slot_ids?.[0] === block.slot_ids[0]
+        return (
+          <div key={block.slot_ids[0]}
+            onClick={() => setSelected(isSelected ? null : block)}
+            className={`card p-4 cursor-pointer transition-all ${isSelected ? 'border-gray-900' : 'hover:border-gray-300'}`}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-semibold text-sm text-gray-900">{block.hal_navn}</p>
+                <div className="flex gap-2 mt-1 flex-wrap items-center">
+                  <span className="text-xs font-mono text-gray-700">{formatUkedag(block.ukedag)} {formatTime(block.fra_kl)}–{formatTime(block.til_kl)}</span>
+                  <span className="badge bg-gray-100 text-gray-600">{formatVarighet(block.varighet_min)}</span>
+                </div>
               </div>
+              <span className={`text-xs font-medium ${isSelected ? 'text-gray-900' : 'text-gray-600'}`}>
+                {isSelected ? 'Valgt' : 'Velg'}
+              </span>
             </div>
-            <span className={`text-xs font-medium ${selected?.id === slot.id ? 'text-gray-900' : 'text-gray-600'}`}>
-              {selected?.id === slot.id ? 'Valgt' : 'Velg'}
-            </span>
           </div>
-        </div>
-      ))}
+        )
+      })}
 
       {/* Application form */}
       {selected && !sent && (
@@ -352,7 +506,7 @@ function SokMerTid({ sesongId }: { sesongId: string }) {
           <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
             <p className="font-semibold text-sm text-gray-900">Send søknad</p>
             <p className="text-xs text-gray-600 mt-0.5">
-              {selected.haller?.navn} — {selected.ukedag.charAt(0).toUpperCase() + selected.ukedag.slice(1)} {formatTime(selected.fra_kl)}–{formatTime(selected.til_kl)}
+              {selected.hal_navn} — {formatUkedag(selected.ukedag)} {formatTime(selected.fra_kl)}–{formatTime(selected.til_kl)} ({formatVarighet(selected.varighet_min)})
             </p>
           </div>
           <div className="p-4 space-y-3">
@@ -372,12 +526,15 @@ function SokMerTid({ sesongId }: { sesongId: string }) {
               <textarea className="input h-20 resize-none" placeholder="Beskriv behovet kort..." value={form.begrunnelse} onChange={e => setForm(f => ({ ...f, begrunnelse: e.target.value }))} />
             </div>
             <button onClick={async () => {
-              const res = await fetch('/api/soknader', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tidslot_id: selected.id, gruppe: form.gruppe, begrunnelse: form.begrunnelse }),
-              })
-              if (res.ok) setSent(true)
+              // Send a søknad for each slot in the block
+              const results = await Promise.all(selected.slot_ids.map((slotId: string) =>
+                fetch('/api/soknader', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ tidslot_id: slotId, gruppe: form.gruppe, begrunnelse: form.begrunnelse }),
+                })
+              ))
+              if (results.every(r => r.ok)) setSent(true)
             }} className="btn-primary w-full">Send søknad</button>
           </div>
         </div>
