@@ -17,11 +17,31 @@ export default async function AdminPage() {
   let slots: any[] = []
   let endringer: any[] = []
   if (aktivSesong) {
-    const [slotsRes, endringerRes] = await Promise.all([
-      supabase.from('tidslots').select('*, haller(id, navn, underlag), klubber(id, navn, idrett)').eq('sesong_id', aktivSesong.id).order('ukedag').order('fra_kl').range(0, 9999),
+    // Hent ALLE tidslots i sider på 1000 ad gangen for å omgå server-side max-rows
+    async function fetchAllSlots(sesongId: string) {
+      const pageSize = 1000
+      let from = 0
+      const all: any[] = []
+      while (true) {
+        const { data, error } = await supabase
+          .from('tidslots')
+          .select('*, haller(id, navn, underlag), klubber(id, navn, idrett)')
+          .eq('sesong_id', sesongId)
+          .order('ukedag').order('fra_kl')
+          .range(from, from + pageSize - 1)
+        if (error || !data || data.length === 0) break
+        all.push(...data)
+        if (data.length < pageSize) break
+        from += pageSize
+      }
+      return all
+    }
+
+    const [allSlots, endringerRes] = await Promise.all([
+      fetchAllSlots(aktivSesong.id),
       supabase.from('svar').select('*, klubber(id, navn, idrett), tidslots(id, ukedag, fra_kl, til_kl, hal_id, haller(id, navn))').eq('sesong_id', aktivSesong.id).eq('handling', 'endre'),
     ])
-    slots = slotsRes.data ?? []
+    slots = allSlots
     endringer = endringerRes.data ?? []
   }
   return (
