@@ -173,14 +173,19 @@ export default function KlubbOversikt({
             body: JSON.stringify({ tidslot_id, ...v }),
           })
         ))
-        if (!results.every(r => r.ok)) {
-          throw new Error('Klarte ikke lagre alle endringer')
+        const failed = results.find(r => !r.ok)
+        if (failed) {
+          const detail = await failed.json().catch(() => ({}))
+          throw new Error(`Klarte ikke lagre endringer: ${detail.error ? JSON.stringify(detail.error) : failed.statusText}`)
         }
       }
 
       // 2) Bekreft resten (PUT = bekreft alle som ikke har svar)
       const res = await fetch('/api/svar', { method: 'PUT' })
-      if (!res.ok) throw new Error('Klarte ikke bekrefte resterende tider')
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}))
+        throw new Error(`Klarte ikke bekrefte resterende tider: ${detail.error ?? res.statusText}`)
+      }
 
       // 3) Flytt pending → saved
       setSavedSvar(prev => {
