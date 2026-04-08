@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { verifyAdmin } from '@/lib/admin-auth'
+import { logAudit } from '@/lib/audit'
 import { z } from 'zod'
 
 const slotSchema = z.object({
@@ -12,10 +13,19 @@ const slotSchema = z.object({
   klubb_id: z.string().uuid().nullable().optional(),
 })
 
-const slotUpdateSchema = z.object({
-  id: z.string().uuid(),
-  klubb_id: z.string().uuid().nullable(),
-})
+// PATCH støtter to former:
+//   { id, klubb_id }              — tildel/frigjør klubb (eksisterende)
+//   { ids: [], status: '...' }    — sett status (utilgjengelig/ledig) på én eller flere slots
+const slotUpdateSchema = z.union([
+  z.object({
+    id: z.string().uuid(),
+    klubb_id: z.string().uuid().nullable(),
+  }),
+  z.object({
+    ids: z.array(z.string().uuid()).min(1),
+    status: z.enum(['ledig', 'utilgjengelig']),
+  }),
+])
 
 // GET /api/tidslots?sesong_id=&hal_id=&klubb_id=
 export async function GET(request: NextRequest) {
@@ -69,16 +79,47 @@ export async function POST(request: NextRequest) {
   return NextResponse.json(data, { status: 201 })
 }
 
-// PATCH /api/tidslots — admin updates slot (reassign club)
+// PATCH /api/tidslots — admin tildeler/frigjør, eller setter status
 export async function PATCH(request: NextRequest) {
-  const { error: authError } = await verifyAdmin()
-  if (authError) return authError
+  const auth = await verifyAdmin()
+  if (auth.error) return auth.error
 
   const body = await request.json()
   const parsed = slotUpdateSchema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
 
   const supabase = createAdminClient()
+
+  // Form 2: bulk status update
+  if ('ids' in parsed.data) {
+    const { ids, status } = parsed.data
+    // Når man markerer som utilgjengelig, frigjør klubb samtidig
+    const update: any = { status }
+    if (status === 'utilgjengelig') update.klubb_id = null
+
+    const { error } = await supabase
+      .from('tidslots')
+      .update(update)
+      .in('id', ids)
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    await logAudit({
+      admin_id: auth.admin.id,
+      admin_epost: auth.admin.epost,
+      handling: status === 'utilgjengelig' ? 'slot_blokkert' : 'slot_frigjort',
+      entitet: 'tidslots',
+      entitet_id: ids[0],
+      beskrivelse: status === 'utilgjengelig'
+        ? `Markerte ${ids.length} tidslot${ids.length > 1 ? 's' : ''} som utilgjengelig`
+        : `Frigjorde ${ids.length} tidslot${ids.length > 1 ? 's' : ''}`,
+      metadata: { ids, status },
+    })
+
+    return NextResponse.json({ ok: true, count: ids.length })
+  }
+
+  // Form 1: enkelt-tildeling (bakoverkompatibel)
   const { data, error } = await supabase
     .from('tidslots')
     .update({ klubb_id: parsed.data.klubb_id })

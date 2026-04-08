@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useEffect } from 'react'
 import type { Database } from '@/types/database'
+import { idrettColor, TIME_ROWS } from '@/components/admin/types'
 
 type Klubb = Database['public']['Tables']['klubber']['Row']
 type Sesong = Database['public']['Tables']['sesonger']['Row']
@@ -496,92 +497,221 @@ export default function KlubbOversikt({
   )
 }
 
-// ── Søk mer tid subcomponent ──
+// ── Søk mer tid: hall-grid med klikkbare ledige celler ──
+interface GridSlot {
+  id: string
+  hal_id: string
+  ukedag: string
+  fra_kl: string
+  til_kl: string
+  klubb_id: string | null
+  status: 'ledig' | 'utilgjengelig'
+  haller: { id: string; navn: string } | null
+  klubber: { id: string; navn: string; idrett: string | null } | null
+}
+
+const GRID_DAYS = ['mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag'] as const
+const DAG_KORT: Record<string, string> = { mandag: 'Man', tirsdag: 'Tir', onsdag: 'Ons', torsdag: 'Tor', fredag: 'Fre' }
+
 function SokMerTid({ sesongId }: { sesongId: string }) {
-  const [slots, setSlots] = useState<any[]>([])
+  const [slots, setSlots] = useState<GridSlot[]>([])
   const [loading, setLoading] = useState(false)
   const [loaded, setLoaded] = useState(false)
-  const [dagFilter, setDagFilter] = useState('alle')
-  const [selected, setSelected] = useState<any | null>(null)
+  const [selectedHalId, setSelectedHalId] = useState<string | null>(null)
+  const [selectedSlotIds, setSelectedSlotIds] = useState<Set<string>>(new Set())
   const [form, setForm] = useState({ gruppe: 'barn', begrunnelse: '' })
+  const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
+  const [feil, setFeil] = useState<string | null>(null)
 
   async function loadSlots() {
     setLoading(true)
-    const res = await fetch(`/api/tidslots?sesong_id=${sesongId}&ledig=true`)
-    const data = await res.json()
+    const res = await fetch(`/api/tidslots?sesong_id=${sesongId}`)
+    const data: GridSlot[] = await res.json()
     setSlots(data)
     setLoaded(true)
     setLoading(false)
+    // Velg første hall som har slots
+    const firstHal = data.find(s => s.haller)?.haller?.id ?? null
+    if (firstHal) setSelectedHalId(firstHal)
   }
 
   if (!loaded) {
     return (
       <div className="card p-6 text-center space-y-3">
-        <p className="text-sm text-gray-600">Klikk under for å se ledige treningstider på tvers av alle saler.</p>
+        <p className="text-sm text-gray-600">Klikk under for å se hall-oversikten — tildelte, ledige og blokkerte tider.</p>
         <button onClick={loadSlots} disabled={loading} className="btn-primary">
-          {loading ? 'Laster...' : 'Vis ledige tider'}
+          {loading ? 'Laster…' : 'Vis hall-oversikt'}
         </button>
       </div>
     )
   }
 
-  const DAYS = ['alle', 'mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag']
+  // Unike haller fra slots
+  const haller = Array.from(
+    new Map(slots.filter(s => s.haller).map(s => [s.haller!.id, s.haller!])).values()
+  ).sort((a, b) => a.navn.localeCompare(b.navn))
 
-  // Group ledige slots into blocks per hall+ukedag (consecutive)
-  const filtered = dagFilter === 'alle' ? slots : slots.filter((s: any) => s.ukedag === dagFilter)
-  const ledigeBlocks = groupSlotsIntoBlocks(filtered as Slot[])
+  const halSlots = slots.filter(s => s.hal_id === selectedHalId)
+  const selectedHal = haller.find(h => h.id === selectedHalId)
+
+  function toggleSlot(slot: GridSlot) {
+    if (slot.status === 'utilgjengelig' || slot.klubb_id) return
+    setSelectedSlotIds(prev => {
+      const next = new Set(prev)
+      if (next.has(slot.id)) next.delete(slot.id)
+      else next.add(slot.id)
+      return next
+    })
+    setSent(false)
+    setFeil(null)
+  }
+
+  // Skift hall → tøm valg
+  function pickHall(id: string) {
+    setSelectedHalId(id)
+    setSelectedSlotIds(new Set())
+    setSent(false)
+    setFeil(null)
+  }
+
+  async function sendSoknad() {
+    if (selectedSlotIds.size === 0) return
+    setSending(true)
+    setFeil(null)
+    const ids = Array.from(selectedSlotIds)
+    const results = await Promise.all(ids.map(slotId =>
+      fetch('/api/soknader', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tidslot_id: slotId, gruppe: form.gruppe, begrunnelse: form.begrunnelse }),
+      })
+    ))
+    const ok = results.every(r => r.ok)
+    if (ok) {
+      setSent(true)
+      setSelectedSlotIds(new Set())
+    } else {
+      const firstError = await results.find(r => !r.ok)?.json().catch(() => null)
+      setFeil(firstError?.error ?? 'Noe gikk galt')
+    }
+    setSending(false)
+  }
+
+  // Beregn antall slots per status (for header)
+  const ledigeAntall = halSlots.filter(s => !s.klubb_id && s.status !== 'utilgjengelig').length
+  const tildelteAntall = halSlots.filter(s => s.klubb_id).length
+  const blokkertAntall = halSlots.filter(s => s.status === 'utilgjengelig').length
 
   return (
     <div className="space-y-4">
-      {/* Day filter */}
-      <div className="card p-3 flex items-center gap-2 flex-wrap">
-        <span className="label">Dag</span>
-        <div className="flex gap-1.5 flex-wrap">
-          {DAYS.map(d => (
-            <button key={d} onClick={() => setDagFilter(d)}
-              className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
-                dagFilter === d ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-              }`}>
-              {d === 'alle' ? 'Alle' : d.charAt(0).toUpperCase() + d.slice(1)}
-            </button>
-          ))}
+      {/* Hall-velger */}
+      {haller.length > 1 && (
+        <div className="card p-3">
+          <p className="label mb-2">Velg hall</p>
+          <div className="flex gap-1.5 flex-wrap">
+            {haller.map(h => (
+              <button key={h.id} onClick={() => pickHall(h.id)}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium border transition-colors ${
+                  selectedHalId === h.id ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-300 text-gray-700 hover:bg-gray-100'
+                }`}>
+                {h.navn}
+              </button>
+            ))}
+          </div>
         </div>
-        <span className="ml-auto text-xs text-gray-600">{ledigeBlocks.length} ledige blokker</span>
-      </div>
+      )}
 
-      {/* Block list */}
-      {ledigeBlocks.length === 0 ? (
-        <p className="text-center text-sm text-gray-600 py-8">Ingen ledige tider</p>
-      ) : ledigeBlocks.map((block) => {
-        const isSelected = selected?.slot_ids?.[0] === block.slot_ids[0]
-        return (
-          <div key={block.slot_ids[0]}
-            onClick={() => setSelected(isSelected ? null : block)}
-            className={`card p-4 cursor-pointer transition-all ${isSelected ? 'border-gray-900' : 'hover:border-gray-300'}`}>
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="font-semibold text-sm text-gray-900">{block.hal_navn}</p>
-                <div className="flex gap-2 mt-1 flex-wrap items-center">
-                  <span className="text-xs font-mono text-gray-700">{formatUkedag(block.ukedag)} {formatTime(block.fra_kl)}–{formatTime(block.til_kl)}</span>
-                  <span className="badge bg-gray-100 text-gray-600">{formatVarighet(block.varighet_min)}</span>
-                </div>
+      {selectedHal && (
+        <>
+          <div className="flex items-center justify-between gap-3 px-1">
+            <div>
+              <p className="font-semibold text-gray-900">{selectedHal.navn}</p>
+              <p className="text-xs text-gray-700">
+                {tildelteAntall * 0.5}t tildelt · {ledigeAntall * 0.5}t ledig{blokkertAntall > 0 ? ` · ${blokkertAntall * 0.5}t blokkert` : ''}
+              </p>
+            </div>
+            {selectedSlotIds.size > 0 && (
+              <span className="badge bg-blue-100 text-blue-900 ring-1 ring-blue-300">
+                {selectedSlotIds.size} valgt ({selectedSlotIds.size * 0.5}t)
+              </span>
+            )}
+          </div>
+
+          {/* Grid */}
+          <div className="card overflow-hidden">
+            <div className="overflow-x-auto">
+              <div className="grid min-w-[500px]" style={{ gridTemplateColumns: '60px repeat(5, 1fr)' }}>
+                <div className="border-b border-r border-gray-300 bg-gray-100 p-2" />
+                {GRID_DAYS.map(d => (
+                  <div key={d} className="border-b border-r border-gray-300 bg-gray-100 px-2 py-2 text-center text-xs font-bold uppercase tracking-wider text-gray-800 last:border-r-0">{DAG_KORT[d]}</div>
+                ))}
+                {TIME_ROWS.map(time => (
+                  <div key={time} className="contents">
+                    <div className="border-b border-r border-gray-300 bg-gray-100 px-2 py-0 flex items-center">
+                      <span className="text-[10px] font-mono font-semibold text-gray-800">{time}</span>
+                    </div>
+                    {GRID_DAYS.map(dag => {
+                      const slot = halSlots.find(s => s.ukedag === dag && formatTime(s.fra_kl) === time)
+                      const isUtilgj = slot?.status === 'utilgjengelig'
+                      const isTildelt = !!slot?.klubb_id
+                      const isLedig = slot && !isTildelt && !isUtilgj
+                      const isSelected = slot && selectedSlotIds.has(slot.id)
+                      const klassen = isUtilgj
+                        ? 'slot-utilgjengelig cursor-not-allowed'
+                        : isTildelt
+                          ? idrettColor(slot?.klubber?.idrett) + ' cursor-not-allowed'
+                          : isLedig
+                            ? (isSelected ? 'bg-blue-200 ring-2 ring-inset ring-blue-600 cursor-pointer' : 'bg-white hover:bg-blue-50 cursor-pointer')
+                            : ''
+                      return (
+                        <div key={dag}
+                          onClick={() => slot && toggleSlot(slot)}
+                          title={isUtilgj ? 'Ikke tilgjengelig' : isTildelt ? slot?.klubber?.navn ?? '' : isLedig ? 'Klikk for å velge' : ''}
+                          className={`h-9 border-b border-r border-gray-300 last:border-r-0 transition-colors ${klassen}`}>
+                          {isTildelt && (
+                            <div className="flex h-full items-center px-1.5 overflow-hidden">
+                              <span className="truncate text-[10px] font-semibold">{slot?.klubber?.navn?.split(' ')[0]}</span>
+                            </div>
+                          )}
+                          {isUtilgj && (
+                            <div className="flex h-full items-center justify-center">
+                              <span className="text-[9px] font-bold text-gray-700">×</span>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                ))}
               </div>
-              <span className={`text-xs font-medium ${isSelected ? 'text-gray-900' : 'text-gray-600'}`}>
-                {isSelected ? 'Valgt' : 'Velg'}
+            </div>
+            {/* Legend */}
+            <div className="flex gap-3 flex-wrap border-t border-gray-300 bg-gray-100 px-4 py-2">
+              {['kampsport', 'kickboksing', 'boksing', 'fekting', 'bryting', 'judo'].map(k => (
+                <span key={k} className="flex items-center gap-1 text-[10px] font-medium text-gray-800">
+                  <span className={`h-2.5 w-2.5 rounded-sm ${idrettColor(k)}`} />
+                  {k.charAt(0).toUpperCase() + k.slice(1)}
+                </span>
+              ))}
+              <span className="flex items-center gap-1 text-[10px] font-medium text-gray-800">
+                <span className="h-2.5 w-2.5 rounded-sm bg-white ring-1 ring-gray-400" />Ledig
+              </span>
+              <span className="flex items-center gap-1 text-[10px] font-medium text-gray-800">
+                <span className="h-2.5 w-2.5 rounded-sm slot-utilgjengelig" />Ikke tilgjengelig
               </span>
             </div>
           </div>
-        )
-      })}
+        </>
+      )}
 
-      {/* Application form */}
-      {selected && !sent && (
+      {/* Søknadsskjema */}
+      {selectedSlotIds.size > 0 && !sent && (
         <div className="card overflow-hidden">
-          <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+          <div className="bg-gray-100 px-4 py-3 border-b border-gray-200">
             <p className="font-semibold text-sm text-gray-900">Send søknad</p>
-            <p className="text-xs text-gray-600 mt-0.5">
-              {selected.hal_navn} — {formatUkedag(selected.ukedag)} {formatTime(selected.fra_kl)}–{formatTime(selected.til_kl)} ({formatVarighet(selected.varighet_min)})
+            <p className="text-xs text-gray-700 mt-0.5">
+              {selectedSlotIds.size} valgt{pl('e', selectedSlotIds.size)} blokk{pl('er', selectedSlotIds.size)} ({selectedSlotIds.size * 0.5}t totalt)
             </p>
           </div>
           <div className="p-4 space-y-3">
@@ -590,7 +720,7 @@ function SokMerTid({ sesongId }: { sesongId: string }) {
               <div className="grid grid-cols-3 gap-2">
                 {(['barn', 'voksne', 'begge'] as const).map(g => (
                   <button key={g} onClick={() => setForm(f => ({ ...f, gruppe: g }))}
-                    className={`rounded-lg border py-2 text-sm font-medium transition-colors ${form.gruppe === g ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                    className={`rounded-lg border py-2 text-sm font-medium transition-colors ${form.gruppe === g ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-300 text-gray-700 hover:bg-gray-100'}`}>
                     {g.charAt(0).toUpperCase() + g.slice(1)}
                   </button>
                 ))}
@@ -598,19 +728,12 @@ function SokMerTid({ sesongId }: { sesongId: string }) {
             </div>
             <div>
               <label className="label mb-1.5">Begrunnelse</label>
-              <textarea className="input h-20 resize-none" placeholder="Beskriv behovet kort..." value={form.begrunnelse} onChange={e => setForm(f => ({ ...f, begrunnelse: e.target.value }))} />
+              <textarea className="input h-20 resize-none" placeholder="Beskriv behovet kort…" value={form.begrunnelse} onChange={e => setForm(f => ({ ...f, begrunnelse: e.target.value }))} />
             </div>
-            <button onClick={async () => {
-              // Send a søknad for each slot in the block
-              const results = await Promise.all(selected.slot_ids.map((slotId: string) =>
-                fetch('/api/soknader', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ tidslot_id: slotId, gruppe: form.gruppe, begrunnelse: form.begrunnelse }),
-                })
-              ))
-              if (results.every(r => r.ok)) setSent(true)
-            }} className="btn-primary w-full">Send søknad</button>
+            {feil && <p className="rounded-lg bg-red-100 ring-1 ring-red-300 px-3 py-2 text-sm text-red-900">{feil}</p>}
+            <button onClick={sendSoknad} disabled={sending || form.begrunnelse.trim().length < 10} className="btn-primary w-full">
+              {sending ? 'Sender…' : `Send søknad (${selectedSlotIds.size} blokk${pl('er', selectedSlotIds.size)})`}
+            </button>
           </div>
         </div>
       )}
@@ -624,6 +747,9 @@ function SokMerTid({ sesongId }: { sesongId: string }) {
     </div>
   )
 }
+
+// Liten flertallshjelper: pl('er', 1) → '', pl('er', 2) → 'er'
+function pl(suffix: string, n: number) { return n === 1 ? '' : suffix }
 
 // ── Klubbprofil-komponent ──
 interface KlubbProfilData {

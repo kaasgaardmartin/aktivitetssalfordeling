@@ -58,9 +58,10 @@ export interface Database {
           til_kl: string
           klubb_id: string | null
           sesong_id: string | null
+          status: 'ledig' | 'utilgjengelig'
           opprettet_at: string
         }
-        Insert: Omit<Database['public']['Tables']['tidslots']['Row'], 'id' | 'opprettet_at'>
+        Insert: Omit<Database['public']['Tables']['tidslots']['Row'], 'id' | 'opprettet_at' | 'status'> & { status?: 'ledig' | 'utilgjengelig' }
         Update: Partial<Database['public']['Tables']['tidslots']['Insert']>
       }
       magic_links: {

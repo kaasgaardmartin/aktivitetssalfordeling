@@ -39,7 +39,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
   const [nyHallLaster, setNyHallLaster] = useState(false)
   const [nyHallFeil, setNyHallFeil] = useState('')
   const [showNySlot, setShowNySlot] = useState(false)
-  const [nySlotForm, setNySlotForm] = useState({ ukedag: 'mandag', fra_kl: '16:00', til_kl: '22:30', klubb_id: '' })
+  const [nySlotForm, setNySlotForm] = useState({ ukedag: 'mandag', fra_kl: '16:00', til_kl: '22:30', klubb_id: '', utilgjengelig: false })
   const [nySlotLaster, setNySlotLaster] = useState(false)
   const [nySlotFeil, setNySlotFeil] = useState('')
   const [endringer, setEndringer] = useState(initialEndringer)
@@ -169,6 +169,14 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
   async function lagreSlot() {
     if (!slotModal) return
     setSlotModalSaving(true)
+    // Hvis sloten er markert utilgjengelig, frigjør (sett ledig) før vi tildeler klubb
+    if (slotModal.status === 'utilgjengelig') {
+      await fetch('/api/tidslots', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [slotModal.id], status: 'ledig' }),
+      })
+    }
     const res = await fetch('/api/tidslots', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -176,7 +184,37 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
     })
     if (res.ok) {
       const tildeltKlubb = klubber.find(k => k.id === (slotModalKlubbId || null)) ?? null
-      setSlots(prev => prev.map(s => s.id === slotModal.id ? { ...s, klubb_id: slotModalKlubbId || null, klubber: tildeltKlubb ? { id: tildeltKlubb.id, navn: tildeltKlubb.navn, idrett: tildeltKlubb.idrett } : null } : s))
+      setSlots(prev => prev.map(s => s.id === slotModal.id ? { ...s, klubb_id: slotModalKlubbId || null, status: 'ledig', klubber: tildeltKlubb ? { id: tildeltKlubb.id, navn: tildeltKlubb.navn, idrett: tildeltKlubb.idrett } : null } : s))
+      setSlotModal(null)
+    }
+    setSlotModalSaving(false)
+  }
+
+  async function markerUtilgjengelig() {
+    if (!slotModal) return
+    setSlotModalSaving(true)
+    const res = await fetch('/api/tidslots', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: [slotModal.id], status: 'utilgjengelig' }),
+    })
+    if (res.ok) {
+      setSlots(prev => prev.map(s => s.id === slotModal.id ? { ...s, klubb_id: null, status: 'utilgjengelig', klubber: null } : s))
+      setSlotModal(null)
+    }
+    setSlotModalSaving(false)
+  }
+
+  async function frigjorSlot() {
+    if (!slotModal) return
+    setSlotModalSaving(true)
+    const res = await fetch('/api/tidslots', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: [slotModal.id], status: 'ledig' }),
+    })
+    if (res.ok) {
+      setSlots(prev => prev.map(s => s.id === slotModal.id ? { ...s, status: 'ledig' } : s))
       setSlotModal(null)
     }
     setSlotModalSaving(false)
@@ -202,13 +240,14 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
       setNySlotLaster(false)
       return
     }
+    const klubbForPayload = nySlotForm.utilgjengelig ? null : (nySlotForm.klubb_id || null)
     const payload = intervals.map(s => ({
       hal_id: selectedHalId,
       sesong_id: aktivSesong.id,
       ukedag: nySlotForm.ukedag,
       fra_kl: s.fra_kl,
       til_kl: s.til_kl,
-      klubb_id: nySlotForm.klubb_id || null,
+      klubb_id: klubbForPayload,
     }))
     const res = await fetch('/api/tidslots', {
       method: 'POST',
@@ -217,15 +256,25 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
     })
     if (res.ok) {
       const created = await res.json()
-      const tildeltKlubb = klubber.find(k => k.id === nySlotForm.klubb_id) ?? null
-      const newSlots = created.map((c: Slot) => ({
+      // Hvis utilgjengelig: følg opp med PATCH for å sette status på alle nye slots
+      let finalCreated = created as Slot[]
+      if (nySlotForm.utilgjengelig && created.length > 0) {
+        await fetch('/api/tidslots', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: created.map((c: Slot) => c.id), status: 'utilgjengelig' }),
+        })
+        finalCreated = created.map((c: Slot) => ({ ...c, status: 'utilgjengelig' as const }))
+      }
+      const tildeltKlubb = klubber.find(k => k.id === klubbForPayload) ?? null
+      const newSlots = finalCreated.map((c: Slot) => ({
         ...c,
-        haller: { id: selectedHalId, navn: selectedHal?.navn, underlag: selectedHal?.underlag },
+        haller: { id: selectedHalId, navn: selectedHal?.navn ?? '', underlag: selectedHal?.underlag ?? null },
         klubber: tildeltKlubb ? { id: tildeltKlubb.id, navn: tildeltKlubb.navn, idrett: tildeltKlubb.idrett } : null,
       }))
       setSlots(prev => [...prev, ...newSlots])
       setShowNySlot(false)
-      setNySlotForm({ ukedag: 'mandag', fra_kl: '16:00', til_kl: '22:30', klubb_id: '' })
+      setNySlotForm({ ukedag: 'mandag', fra_kl: '16:00', til_kl: '22:30', klubb_id: '', utilgjengelig: false })
     } else {
       const data = await res.json()
       setNySlotFeil(data.error || 'Noe gikk galt')
@@ -454,13 +503,25 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                           </div>
                           {UKEDAG_ORDER.map(dag => {
                             const slot = halSlots.find(s => s.ukedag === dag && formatTime(s.fra_kl) === time)
+                            const isUtilgj = slot?.status === 'utilgjengelig'
+                            const klassen = isUtilgj
+                              ? 'slot-utilgjengelig hover:opacity-80'
+                              : slot?.klubb_id
+                                ? idrettColor(slot.klubber?.idrett) + ' hover:opacity-80'
+                                : 'hover:bg-green-100'
                             return (
                               <div key={dag}
                                 onClick={() => slot && openSlotModal(slot)}
-                                className={`h-9 border-b border-r border-gray-300 last:border-r-0 cursor-pointer transition-colors ${slot?.klubb_id ? idrettColor(slot.klubber?.idrett) + ' hover:opacity-80' : 'hover:bg-green-100'}`}>
-                                {slot?.klubb_id && (
+                                title={isUtilgj ? 'Ikke tilgjengelig' : slot?.klubber?.navn ?? ''}
+                                className={`h-9 border-b border-r border-gray-300 last:border-r-0 cursor-pointer transition-colors ${klassen}`}>
+                                {slot?.klubb_id && !isUtilgj && (
                                   <div className="flex h-full items-center px-1.5 overflow-hidden">
                                     <span className="truncate text-[10px] font-semibold">{slot.klubber?.navn?.split(' ')[0]}</span>
+                                  </div>
+                                )}
+                                {isUtilgj && (
+                                  <div className="flex h-full items-center justify-center">
+                                    <span className="text-[9px] font-bold uppercase tracking-tight text-gray-700">×</span>
                                   </div>
                                 )}
                               </div>
@@ -470,11 +531,9 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                       ))}
                     </div>
                   </div>
-                  {/* Legend */}
+                  {/* Legend — kun de seks forbundene + ledig + ikke tilgjengelig */}
                   <div className="flex gap-3 flex-wrap border-t border-gray-300 bg-gray-100 px-4 py-2">
-                    {Object.entries(idrettColor).length && Object.keys({
-                      kickboksing: 1, boksing: 1, kampsport: 1, judo: 1, bryting: 1, dans: 1
-                    }).map(k => (
+                    {['kampsport', 'kickboksing', 'boksing', 'fekting', 'bryting', 'judo'].map(k => (
                       <span key={k} className="flex items-center gap-1 text-[10px] font-medium text-gray-800">
                         <span className={`h-2.5 w-2.5 rounded-sm ${idrettColor(k)}`} />
                         {k.charAt(0).toUpperCase() + k.slice(1)}
@@ -482,6 +541,9 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                     ))}
                     <span className="flex items-center gap-1 text-[10px] font-medium text-gray-800">
                       <span className="h-2.5 w-2.5 rounded-sm bg-white ring-1 ring-gray-400" />Ledig
+                    </span>
+                    <span className="flex items-center gap-1 text-[10px] font-medium text-gray-800">
+                      <span className="h-2.5 w-2.5 rounded-sm slot-utilgjengelig" />Ikke tilgjengelig
                     </span>
                   </div>
                 </div>
@@ -506,27 +568,51 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
               <p className="font-semibold text-gray-900">Rediger slot</p>
               <button onClick={() => setSlotModal(null)} className="text-gray-600 text-xl leading-none">&times;</button>
             </div>
-            <p className="text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-2">
+            <p className="text-xs text-gray-700 bg-gray-100 ring-1 ring-gray-300 rounded-lg px-3 py-2">
               {slotModal.haller?.navn} — {slotModal.ukedag.charAt(0).toUpperCase() + slotModal.ukedag.slice(1)} {formatTime(slotModal.fra_kl)}–{formatTime(slotModal.til_kl)}
             </p>
-            <div>
-              <label className="label mb-1.5">Tildelt klubb</label>
-              <select className="input" value={slotModalKlubbId} onChange={e => setSlotModalKlubbId(e.target.value)}>
-                <option value="">— Ledig —</option>
-                {klubber.map(k => (
-                  <option key={k.id} value={k.id}>{k.navn}{k.idrett ? ` (${k.idrett})` : ''}</option>
-                ))}
-              </select>
-            </div>
-            <div className="flex gap-2 justify-between">
-              <button onClick={slettSlot} className="btn btn-danger text-xs px-3">Slett slot</button>
-              <div className="flex gap-2">
-                <button onClick={() => setSlotModal(null)} className="btn">Avbryt</button>
-                <button onClick={lagreSlot} disabled={slotModalSaving} className="btn-primary">
-                  {slotModalSaving ? 'Lagrer...' : 'Lagre'}
+
+            {slotModal.status === 'utilgjengelig' ? (
+              <>
+                <div className="rounded-lg bg-gray-100 ring-1 ring-gray-300 px-3 py-3 text-center">
+                  <p className="text-sm font-semibold text-gray-900">Ikke tilgjengelig</p>
+                  <p className="text-xs text-gray-700 mt-0.5">Tiden er blokkert. Klubber kan ikke søke på den.</p>
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => setSlotModal(null)} className="btn">Lukk</button>
+                  <button onClick={frigjorSlot} disabled={slotModalSaving} className="btn-primary">
+                    {slotModalSaving ? 'Lagrer...' : 'Frigjør (gjør ledig)'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label className="label mb-1.5">Tildelt klubb</label>
+                  <select className="input" value={slotModalKlubbId} onChange={e => setSlotModalKlubbId(e.target.value)}>
+                    <option value="">— Ledig —</option>
+                    {klubber.map(k => (
+                      <option key={k.id} value={k.id}>{k.navn}{k.idrett ? ` (${k.idrett})` : ''}</option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  onClick={markerUtilgjengelig}
+                  disabled={slotModalSaving}
+                  className="btn w-full text-xs">
+                  Marker som utilgjengelig
                 </button>
-              </div>
-            </div>
+                <div className="flex gap-2 justify-between">
+                  <button onClick={slettSlot} className="btn btn-danger text-xs px-3">Slett slot</button>
+                  <div className="flex gap-2">
+                    <button onClick={() => setSlotModal(null)} className="btn">Avbryt</button>
+                    <button onClick={lagreSlot} disabled={slotModalSaving} className="btn-primary">
+                      {slotModalSaving ? 'Lagrer...' : 'Lagre'}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -566,15 +652,26 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                 </p>
               ) : null
             })()}
-            <div>
-              <label className="label mb-1.5">Tildel klubb (valgfritt)</label>
-              <select className="input" value={nySlotForm.klubb_id} onChange={e => setNySlotForm(f => ({ ...f, klubb_id: e.target.value }))}>
-                <option value="">— Ledig —</option>
-                {klubber.map(k => (
-                  <option key={k.id} value={k.id}>{k.navn}{k.idrett ? ` (${k.idrett})` : ''}</option>
-                ))}
-              </select>
-            </div>
+            {!nySlotForm.utilgjengelig && (
+              <div>
+                <label className="label mb-1.5">Tildel klubb (valgfritt)</label>
+                <select className="input" value={nySlotForm.klubb_id} onChange={e => setNySlotForm(f => ({ ...f, klubb_id: e.target.value }))}>
+                  <option value="">— Ledig —</option>
+                  {klubber.map(k => (
+                    <option key={k.id} value={k.id}>{k.navn}{k.idrett ? ` (${k.idrett})` : ''}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={nySlotForm.utilgjengelig}
+                onChange={e => setNySlotForm(f => ({ ...f, utilgjengelig: e.target.checked, klubb_id: e.target.checked ? '' : f.klubb_id }))}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              <span className="text-sm text-gray-900">Marker som <strong>ikke tilgjengelig</strong> (vedlikehold, fast bruk)</span>
+            </label>
             {nySlotFeil && <p className="text-sm text-red-600">{nySlotFeil}</p>}
             <div className="flex gap-2 justify-end">
               <button type="button" onClick={() => setShowNySlot(false)} className="btn">Avbryt</button>

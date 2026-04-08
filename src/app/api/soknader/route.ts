@@ -37,11 +37,12 @@ export async function POST(request: NextRequest) {
   // Verify slot is actually available
   const { data: slot } = await supabase
     .from('tidslots')
-    .select('id, klubb_id')
+    .select('id, klubb_id, status')
     .eq('id', parsed.data.tidslot_id)
     .single()
 
   if (!slot) return NextResponse.json({ error: 'Slot finnes ikke' }, { status: 404 })
+  if (slot.status === 'utilgjengelig') return NextResponse.json({ error: 'Tiden er markert som utilgjengelig' }, { status: 409 })
   if (slot.klubb_id) return NextResponse.json({ error: 'Slot er ikke lenger ledig' }, { status: 409 })
 
   // Check no duplicate application
