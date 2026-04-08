@@ -3,11 +3,15 @@
 import { useState, useRef } from 'react'
 import type { Hall, Klubb, Sesong, Slot, Soknad, Endring, VentelisteItem } from './types'
 import { UKEDAG_ORDER, UKEDAG_SHORT, UNDERLAG_OPTIONS, TIME_ROWS, idrettColor, formatTime, generate30minSlots } from './types'
+import dynamic from 'next/dynamic'
 import SoknaderTab from './SoknaderTab'
 import EndringerTab from './EndringerTab'
 import VentelisteTab from './VentelisteTab'
 import KlubberTab from './KlubberTab'
 import AuditTab from './AuditTab'
+
+// Leaflet depends on window/document, so load client-side only
+const HallerKart = dynamic(() => import('./HallerKart'), { ssr: false, loading: () => <p className="p-6 text-xs text-gray-600">Laster kart...</p> })
 
 interface DashboardProps {
   haller: Hall[]
@@ -21,7 +25,7 @@ interface DashboardProps {
 }
 
 export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: initialSlots, soknader: initialSoknader, venteliste, klubber, endringer: initialEndringer }: DashboardProps) {
-  const [activeTab, setActiveTab] = useState<'haller' | 'soknader' | 'endringer' | 'venteliste' | 'klubber' | 'logg'>('haller')
+  const [activeTab, setActiveTab] = useState<'haller' | 'soknader' | 'endringer' | 'venteliste' | 'klubber' | 'kart' | 'logg'>('haller')
   const [selectedHalId, setSelectedHalId] = useState<string | null>(haller[0]?.id ?? null)
   const [soknader, setSoknader] = useState(initialSoknader)
   const [slots, setSlots] = useState(initialSlots)
@@ -408,6 +412,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
           { id: 'endringer', label: `Endringer${ubehandledeEndringer ? ` (${ubehandledeEndringer})` : ''}` },
           { id: 'venteliste', label: 'Venteliste' },
           { id: 'klubber', label: 'Klubber' },
+          { id: 'kart', label: 'Kart' },
           { id: 'logg', label: 'Logg' },
         ] as const).map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
@@ -558,6 +563,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
       {activeTab === 'endringer' && <EndringerTab endringer={endringer} onHandleEndring={handleEndring} />}
       {activeTab === 'venteliste' && <VentelisteTab venteliste={venteliste} />}
       {activeTab === 'klubber' && <KlubberTab klubber={klubber} slots={slots} aktivSesong={aktivSesong} />}
+      {activeTab === 'kart' && <HallerKart haller={hallerState} />}
       {activeTab === 'logg' && <AuditTab />}
 
       {/* ── SLOT MODAL (Rediger) ── */}

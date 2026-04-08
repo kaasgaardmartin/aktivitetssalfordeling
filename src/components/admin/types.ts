@@ -9,6 +9,8 @@ export interface Hall {
   postnummer: string | null
   poststed: string | null
   kilde_url: string | null
+  lat: number | null
+  lng: number | null
   stengedager: string | null
   bilder: string[] | null
   normert_timer: number | null
