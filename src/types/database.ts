@@ -13,6 +13,9 @@ export interface Database {
           underlag: string | null
           merknader: string | null
           adresse: string | null
+          postnummer: string | null
+          poststed: string | null
+          kilde_url: string | null
           stengedager: string | null
           bilder: string[] | null
           normert_timer: number | null

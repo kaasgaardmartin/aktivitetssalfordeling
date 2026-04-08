@@ -6,6 +6,9 @@ export interface Hall {
   underlag: string | null
   merknader: string | null
   adresse: string | null
+  postnummer: string | null
+  poststed: string | null
+  kilde_url: string | null
   stengedager: string | null
   bilder: string[] | null
   normert_timer: number | null
@@ -43,7 +46,7 @@ export interface Slot {
   til_kl: string
   klubb_id: string | null
   status?: 'ledig' | 'utilgjengelig'
-  haller?: { id: string; navn: string; underlag: string | null; merknader?: string | null; stengedager?: string | null }
+  haller?: { id: string; navn: string; underlag: string | null; merknader?: string | null; stengedager?: string | null; adresse?: string | null; postnummer?: string | null; poststed?: string | null; kilde_url?: string | null }
   klubber?: { id: string; navn: string; idrett: string | null } | null
 }
 
