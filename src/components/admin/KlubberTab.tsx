@@ -15,6 +15,8 @@ export default function KlubberTab({ klubber, slots, aktivSesong }: Props) {
   const [genererer, setGenererer] = useState<string | null>(null)
   const [testLink, setTestLink] = useState<{ klubb: string; url: string } | null>(null)
 
+  const uten_epost = klubber.filter(k => !k.epost).length
+
   const filtered = klubber.filter(k =>
     !search ||
     k.navn.toLowerCase().includes(search.toLowerCase()) ||
@@ -28,7 +30,7 @@ export default function KlubberTab({ klubber, slots, aktivSesong }: Props) {
       return [
         k.navn,
         k.idrett ?? '',
-        k.epost,
+        k.epost ?? '',
         String(k.medlemstall ?? ''),
         k.andel_barn != null ? String(k.andel_barn) : '',
         String(timerPerUke),
@@ -75,6 +77,12 @@ export default function KlubberTab({ klubber, slots, aktivSesong }: Props) {
           <input type="text" placeholder="Søk klubb..." className="input w-56 text-xs" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
       </div>
+      {uten_epost > 0 && (
+        <div className="rounded-lg bg-amber-50 ring-1 ring-inset ring-amber-200 px-3 py-2 text-xs text-amber-900">
+          <span className="font-semibold">⚠ {uten_epost} {uten_epost === 1 ? 'klubb mangler' : 'klubber mangler'} e-post.</span>{' '}
+          Disse vil ikke motta varsler om søknader eller tildelinger før e-post er fylt inn.
+        </div>
+      )}
       {klubber.length === 0 ? (
         <p className="text-center text-sm text-gray-600 py-12">Ingen klubber registrert</p>
       ) : (
@@ -110,7 +118,15 @@ export default function KlubberTab({ klubber, slots, aktivSesong }: Props) {
                     <td className="px-4 py-2.5 text-right tabular-nums text-xs text-gray-700">{k.medlemstall ?? '–'}</td>
                     <td className="px-4 py-2.5 text-right tabular-nums text-xs text-gray-700">{k.andel_barn != null ? `${k.andel_barn}%` : '–'}</td>
                     <td className="px-4 py-2.5 text-right tabular-nums text-xs font-semibold text-gray-900">{timerPerUke > 0 ? `${timerPerUke}t` : '–'}</td>
-                    <td className="px-4 py-2.5 text-xs text-gray-600 truncate max-w-[180px] hidden sm:table-cell">{k.epost}</td>
+                    <td className="px-4 py-2.5 text-xs truncate max-w-[180px] hidden sm:table-cell">
+                      {k.epost ? (
+                        <span className="text-gray-600">{k.epost}</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-900 ring-1 ring-inset ring-amber-300" title="Mangler e-post — klubben kan ikke motta varsler">
+                          ⚠ Mangler e-post
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-2.5 text-right">
                       <button
                         onClick={() => genererTestLenke(k)}
@@ -127,7 +143,10 @@ export default function KlubberTab({ klubber, slots, aktivSesong }: Props) {
             </tbody>
           </table>
           <div className="border-t border-gray-200 bg-gray-50 px-4 py-2.5 flex items-center justify-between">
-            <span className="text-[10px] text-gray-600">{klubber.length} klubber totalt</span>
+            <span className="text-[10px] text-gray-600">
+              {klubber.length} klubber totalt
+              {uten_epost > 0 && <span className="text-amber-800"> · {uten_epost} uten e-post</span>}
+            </span>
             <span className="text-[10px] text-gray-600">{(slots.filter(s => s.klubb_id).length * 0.5).toFixed(0)}t tildelt totalt</span>
           </div>
         </div>

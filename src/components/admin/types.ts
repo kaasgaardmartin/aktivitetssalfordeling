@@ -17,7 +17,7 @@ export interface Klubb {
   id: string
   navn: string
   idrett: string | null
-  epost: string
+  epost: string | null
   nif_org_id: string | null
   medlemstall: number | null
   andel_barn: number | null

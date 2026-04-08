@@ -26,6 +26,10 @@ export async function POST(request: NextRequest) {
   const results = []
 
   for (const klubb of klubber ?? []) {
+    if (!klubb.epost) {
+      results.push({ klubb: klubb.navn, ok: false, error: 'mangler e-post' })
+      continue
+    }
     // Create magic link token
     const { data: link, error: linkErr } = await supabase
       .from('magic_links')
