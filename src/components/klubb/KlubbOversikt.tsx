@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import type { Database } from '@/types/database'
 
 type Klubb = Database['public']['Tables']['klubber']['Row']
@@ -92,7 +92,7 @@ export default function KlubbOversikt({
   svar: Svar[]
   regler: ReglerInfo
 }) {
-  const [activeTab, setActiveTab] = useState<'tider' | 'sok' | 'regler'>('tider')
+  const [activeTab, setActiveTab] = useState<'tider' | 'sok' | 'profil' | 'regler'>('tider')
   // savedSvar = det som ligger i databasen (fra initialSvar)
   const [savedSvar, setSavedSvar] = useState<Record<string, Svar | { handling: string }>>(
     Object.fromEntries(initialSvar.map(s => [s.tidslot_id, s]))
@@ -235,7 +235,7 @@ export default function KlubbOversikt({
 
       {/* Nav tabs */}
       <div className="flex border-b border-gray-200 bg-white px-4 md:px-5 overflow-x-auto">
-        {(['tider', 'sok', 'regler'] as const).map(tab => (
+        {(['tider', 'sok', 'profil', 'regler'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -245,7 +245,7 @@ export default function KlubbOversikt({
                 : 'border-transparent text-gray-600 hover:text-gray-700'
             }`}
           >
-            {tab === 'tider' ? 'Mine tider' : tab === 'sok' ? 'Søk mer tid' : 'Regler og info'}
+            {tab === 'tider' ? 'Mine tider' : tab === 'sok' ? 'Søk mer tid' : tab === 'profil' ? 'Profil' : 'Regler og info'}
           </button>
         ))}
       </div>
@@ -417,6 +417,11 @@ export default function KlubbOversikt({
         {/* ── SØK MER TID ── */}
         {activeTab === 'sok' && (
           <SokMerTid sesongId={sesong.id} />
+        )}
+
+        {/* ── PROFIL ── */}
+        {activeTab === 'profil' && (
+          <KlubbProfil klubbNavn={klubb.navn} />
         )}
 
         {/* ── REGLER ── */}
@@ -616,6 +621,143 @@ function SokMerTid({ sesongId }: { sesongId: string }) {
           <p className="text-sm text-green-700 mt-1">Admin vil behandle søknaden og du får beskjed.</p>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Klubbprofil-komponent ──
+interface KlubbProfilData {
+  id: string
+  navn: string
+  idrett: string | null
+  epost: string
+  kontaktperson: string | null
+  telefon: string | null
+  medlemstall: number | null
+  andel_barn: number | null
+}
+
+function KlubbProfil({ klubbNavn }: { klubbNavn: string }) {
+  const [data, setData] = useState<KlubbProfilData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [savedAt, setSavedAt] = useState<Date | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/klubb/profil')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { setData(d); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [])
+
+  if (loading) return <div className="card p-6 text-center text-sm text-gray-600">Laster profil…</div>
+  if (!data) return <div className="card p-6 text-center text-sm text-gray-600">Kunne ikke laste profil.</div>
+
+  async function save() {
+    if (!data) return
+    setSaving(true)
+    setErr(null)
+    try {
+      const res = await fetch('/api/klubb/profil', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kontaktperson: data.kontaktperson || null,
+          epost: data.epost,
+          telefon: data.telefon || null,
+          medlemstall: data.medlemstall ?? null,
+          andel_barn: data.andel_barn ?? null,
+        }),
+      })
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}))
+        throw new Error(typeof detail.error === 'string' ? detail.error : 'Klarte ikke lagre')
+      }
+      setSavedAt(new Date())
+    } catch (e: any) {
+      setErr(e.message || 'Noe gikk galt')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="card p-6 space-y-4">
+      <div>
+        <p className="font-semibold text-gray-900">{klubbNavn}</p>
+        <p className="text-xs text-gray-600 mt-0.5">{data.idrett ?? 'Idrett ikke satt'}</p>
+      </div>
+
+      <div className="space-y-3">
+        <div>
+          <label className="label mb-1.5">Kontaktperson</label>
+          <input
+            className="input"
+            placeholder="Navn på kontaktperson"
+            value={data.kontaktperson ?? ''}
+            onChange={e => setData(d => d ? { ...d, kontaktperson: e.target.value } : d)}
+          />
+        </div>
+        <div>
+          <label className="label mb-1.5">E-post</label>
+          <input
+            type="email"
+            className="input"
+            value={data.epost ?? ''}
+            onChange={e => setData(d => d ? { ...d, epost: e.target.value } : d)}
+          />
+          <p className="text-[11px] text-gray-600 mt-1">Brukes til innlogging og varslinger.</p>
+        </div>
+        <div>
+          <label className="label mb-1.5">Telefon</label>
+          <input
+            className="input"
+            placeholder="+47 ..."
+            value={data.telefon ?? ''}
+            onChange={e => setData(d => d ? { ...d, telefon: e.target.value } : d)}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label mb-1.5">Medlemstall</label>
+            <input
+              type="number"
+              min={0}
+              className="input"
+              value={data.medlemstall ?? ''}
+              onChange={e => setData(d => d ? { ...d, medlemstall: e.target.value === '' ? null : Number(e.target.value) } : d)}
+            />
+          </div>
+          <div>
+            <label className="label mb-1.5">Andel barn (%)</label>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              className="input"
+              value={data.andel_barn == null ? '' : Math.round(data.andel_barn * 100)}
+              onChange={e => {
+                const v = e.target.value
+                setData(d => d ? { ...d, andel_barn: v === '' ? null : Math.max(0, Math.min(100, Number(v))) / 100 } : d)
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {err && (
+        <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{err}</div>
+      )}
+
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs text-gray-600">
+          {savedAt ? `✓ Lagret ${savedAt.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}` : 'Ikke lagret'}
+        </span>
+        <button onClick={save} disabled={saving} className="btn-primary">
+          {saving ? 'Lagrer…' : 'Lagre profil'}
+        </button>
+      </div>
     </div>
   )
 }

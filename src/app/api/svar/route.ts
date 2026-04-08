@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
+import { verifyAdmin } from '@/lib/admin-auth'
+import { logAudit } from '@/lib/audit'
+import { sendEmail, emailLayout, formatUkedag, formatTimeShort } from '@/lib/email'
 
 const svarSchema = z.object({
   tidslot_id: z.string().uuid(),
@@ -120,14 +123,9 @@ function generate30minSlots(fra: string, til: string): { fra_kl: string; til_kl:
 // Aksepterer { ids: string[], action } for å håndtere hele blokker.
 // Beholder { id, action } for bakoverkompatibilitet.
 export async function PATCH(request: NextRequest) {
-  const { createServerClientInstance } = await import('@/lib/supabase')
-  const serverClient = await createServerClientInstance()
-  const { data: { user } } = await serverClient.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Ikke innlogget' }, { status: 401 })
-
-  const adminClient = createAdminClient()
-  const { data: adminRow } = await adminClient.from('admin_brukere').select('id').eq('auth_id', user.id).single()
-  if (!adminRow) return NextResponse.json({ error: 'Ikke admin' }, { status: 403 })
+  const auth = await verifyAdmin()
+  if (auth.error) return auth.error
+  const adminInfo = auth.admin
 
   const body = await request.json()
   const { id, ids: idsRaw, action } = body as { id?: string; ids?: string[]; action: 'godkjenn' | 'avslaa' }
@@ -147,6 +145,23 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Fant ikke svar' }, { status: 404 })
   }
 
+  // Hent første tidslot for visning i e-post/audit
+  const tidslotIdsForInfo = svarRader.map(s => s.tidslot_id)
+  const { data: infoSlots } = await supabase
+    .from('tidslots')
+    .select('*, haller(id, navn)')
+    .in('id', tidslotIdsForInfo)
+  const firstSlot: any = infoSlots && infoSlots.length > 0 ? infoSlots[0] : null
+  const hallNavn: string = firstSlot?.haller?.navn ?? 'Ukjent hall'
+
+  // Hent klubb for e-post
+  const klubbIdForInfo = svarRader[0].klubb_id
+  const { data: klubb } = await supabase
+    .from('klubber')
+    .select('id, navn, epost')
+    .eq('id', klubbIdForInfo)
+    .single()
+
   if (action === 'avslaa') {
     // Marker alle som bekreft og fjern endringsforslagene
     const { error } = await supabase
@@ -154,6 +169,37 @@ export async function PATCH(request: NextRequest) {
       .update({ handling: 'bekreft', ny_ukedag: null, ny_fra_kl: null, ny_til_kl: null, kommentar: null })
       .in('id', ids)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    // Audit
+    await logAudit({
+      admin_id: adminInfo.id,
+      admin_epost: adminInfo.epost,
+      handling: 'endring_avslatt',
+      entitet: 'svar',
+      entitet_id: ids[0],
+      beskrivelse: `Avslo endringsforespørsel fra ${klubb?.navn ?? 'ukjent klubb'} for ${hallNavn}`,
+      metadata: { antall_slots: ids.length, hall: hallNavn, klubb: klubb?.navn },
+    })
+
+    // E-post til klubb
+    if (klubb?.epost && firstSlot) {
+      const ukedag = firstSlot.ukedag
+      const fra = formatTimeShort(firstSlot.fra_kl)
+      const tilSlot = infoSlots?.reduce((last: any, s: any) => (s.til_kl > last.til_kl ? s : last), firstSlot)
+      const til = formatTimeShort(tilSlot?.til_kl ?? firstSlot.til_kl)
+      await sendEmail({
+        to: klubb.epost,
+        subject: `Endringsforespørsel avslått — ${hallNavn}`,
+        html: emailLayout({
+          title: 'Endringsforespørselen din ble avslått',
+          body: `
+            <p>Hei ${klubb.navn},</p>
+            <p>Administrator har dessverre <strong>avslått</strong> endringsforespørselen din på <strong>${hallNavn}</strong> (${formatUkedag(ukedag)} ${fra}–${til}). Tidene dine beholdes uendret.</p>
+            <p>Har du spørsmål, ta kontakt med idrettssekretariatet.</p>
+          `,
+        }),
+      })
+    }
     return NextResponse.json({ ok: true })
   }
 
@@ -183,6 +229,11 @@ export async function PATCH(request: NextRequest) {
   const ny_fra_kl = svarRader[0].ny_fra_kl ?? tidslots[0].fra_kl
   const ny_til_kl = svarRader[0].ny_til_kl ?? tidslots[0].til_kl
 
+  // Gammel tid for logging/e-post
+  const gammelUkedag = tidslots[0].ukedag
+  const gammelFra = tidslots.reduce((min: any, t: any) => (t.fra_kl < min.fra_kl ? t : min), tidslots[0]).fra_kl
+  const gammelTil = tidslots.reduce((max: any, t: any) => (t.til_kl > max.til_kl ? t : max), tidslots[0]).til_kl
+
   // 4) Slett gamle tidslots (cascade sletter svar-radene)
   const { error: delErr } = await supabase.from('tidslots').delete().in('id', tidslotIds)
   if (delErr) return NextResponse.json({ error: `Kunne ikke slette gamle slots: ${delErr.message}` }, { status: 500 })
@@ -200,6 +251,43 @@ export async function PATCH(request: NextRequest) {
   if (nyeSlots.length > 0) {
     const { error: insErr } = await supabase.from('tidslots').insert(nyeSlots)
     if (insErr) return NextResponse.json({ error: `Kunne ikke opprette nye slots: ${insErr.message}` }, { status: 500 })
+  }
+
+  // Audit
+  await logAudit({
+    admin_id: adminInfo.id,
+    admin_epost: adminInfo.epost,
+    handling: 'endring_godkjent',
+    entitet: 'svar',
+    entitet_id: ids[0],
+    beskrivelse: `Godkjente endring for ${klubb?.navn ?? 'ukjent klubb'} på ${hallNavn}: ${formatUkedag(gammelUkedag)} ${formatTimeShort(gammelFra)}–${formatTimeShort(gammelTil)} → ${formatUkedag(ny_ukedag)} ${formatTimeShort(ny_fra_kl)}–${formatTimeShort(ny_til_kl)}`,
+    metadata: {
+      hall: hallNavn,
+      klubb: klubb?.navn,
+      gammel: { ukedag: gammelUkedag, fra: gammelFra, til: gammelTil },
+      ny: { ukedag: ny_ukedag, fra: ny_fra_kl, til: ny_til_kl },
+      antall_nye_slots: nyeSlots.length,
+    },
+  })
+
+  // E-post til klubb
+  if (klubb?.epost) {
+    await sendEmail({
+      to: klubb.epost,
+      subject: `Endringsforespørsel godkjent — ${hallNavn}`,
+      html: emailLayout({
+        title: 'Endringsforespørselen din ble godkjent',
+        body: `
+          <p>Hei ${klubb.navn},</p>
+          <p>Administrator har <strong>godkjent</strong> endringen din på <strong>${hallNavn}</strong>:</p>
+          <p style="background:#f3f4f6;padding:10px 14px;border-radius:8px">
+            <span style="color:#888;text-decoration:line-through">${formatUkedag(gammelUkedag)} ${formatTimeShort(gammelFra)}–${formatTimeShort(gammelTil)}</span><br/>
+            <strong>${formatUkedag(ny_ukedag)} ${formatTimeShort(ny_fra_kl)}–${formatTimeShort(ny_til_kl)}</strong>
+          </p>
+          <p>De nye tidene er nå aktive.</p>
+        `,
+      }),
+    })
   }
 
   return NextResponse.json({ ok: true, opprettet: nyeSlots.length })

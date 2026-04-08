@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
+import { verifyAdmin } from '@/lib/admin-auth'
+import { logAudit } from '@/lib/audit'
+import { sendEmail, emailLayout, formatUkedag, formatTimeShort } from '@/lib/email'
 
 async function getSession() {
   const cookieStore = await cookies()
@@ -87,8 +90,12 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(data)
 }
 
-// PATCH /api/soknader/:id — admin approve/reject
+// PATCH /api/soknader — admin godkjenn/avslå
 export async function PATCH(request: NextRequest) {
+  const auth = await verifyAdmin()
+  if (auth.error) return auth.error
+  const adminInfo = auth.admin
+
   const body = await request.json()
   const { id, status } = body as { id: string; status: 'godkjent' | 'avslatt' }
 
@@ -98,28 +105,46 @@ export async function PATCH(request: NextRequest) {
 
   const supabase = createAdminClient()
 
-  // If approving, assign slot to club and auto-reject others
+  // Hent søknad + klubb + slot-info for varsling
+  const { data: soknad } = await supabase
+    .from('soknader')
+    .select('id, klubb_id, tidslot_id, begrunnelse, klubber(id, navn, epost), tidslots(id, ukedag, fra_kl, til_kl, haller(id, navn))')
+    .eq('id', id)
+    .single()
+
+  if (!soknad) return NextResponse.json({ error: 'Fant ikke søknad' }, { status: 404 })
+
+  const klubb: any = (soknad as any).klubber
+  const slot: any = (soknad as any).tidslots
+  const hallNavn = slot?.haller?.navn ?? 'Ukjent hall'
+
+  // Avviste søknader som ble auto-avslått (returneres for varsling)
+  let autoAvslattKlubber: { navn: string; epost: string }[] = []
+
   if (status === 'godkjent') {
-    const { data: soknad } = await supabase
+    // Tildel slot
+    await supabase
+      .from('tidslots')
+      .update({ klubb_id: soknad.klubb_id })
+      .eq('id', soknad.tidslot_id)
+
+    // Hent andre ventende søkere (for varsling)
+    const { data: andreSoknader } = await supabase
       .from('soknader')
-      .select('klubb_id, tidslot_id')
-      .eq('id', id)
-      .single()
+      .select('id, klubber(navn, epost)')
+      .eq('tidslot_id', soknad.tidslot_id)
+      .eq('status', 'venter')
+      .neq('id', id)
+    autoAvslattKlubber = (andreSoknader ?? [])
+      .map((s: any) => s.klubber)
+      .filter((k: any) => k && k.epost)
 
-    if (soknad) {
-      // Assign slot
-      await supabase
-        .from('tidslots')
-        .update({ klubb_id: soknad.klubb_id })
-        .eq('id', soknad.tidslot_id)
-
-      // Reject other applicants for same slot
-      await supabase
-        .from('soknader')
-        .update({ status: 'avslatt', behandlet_at: new Date().toISOString() })
-        .eq('tidslot_id', soknad.tidslot_id)
-        .neq('id', id)
-    }
+    // Auto-avslå andre
+    await supabase
+      .from('soknader')
+      .update({ status: 'avslatt', behandlet_at: new Date().toISOString() })
+      .eq('tidslot_id', soknad.tidslot_id)
+      .neq('id', id)
   }
 
   const { error } = await supabase
@@ -128,5 +153,68 @@ export async function PATCH(request: NextRequest) {
     .eq('id', id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Audit
+  await logAudit({
+    admin_id: adminInfo.id,
+    admin_epost: adminInfo.epost,
+    handling: status === 'godkjent' ? 'soknad_godkjent' : 'soknad_avslatt',
+    entitet: 'soknader',
+    entitet_id: id,
+    beskrivelse: `${status === 'godkjent' ? 'Godkjente' : 'Avslo'} søknad fra ${klubb?.navn ?? 'ukjent klubb'} på ${hallNavn} ${slot ? `${formatUkedag(slot.ukedag)} ${formatTimeShort(slot.fra_kl)}–${formatTimeShort(slot.til_kl)}` : ''}`,
+    metadata: { hall: hallNavn, klubb: klubb?.navn, slot: slot ? { ukedag: slot.ukedag, fra: slot.fra_kl, til: slot.til_kl } : null },
+  })
+
+  // E-post til søkerklubb
+  if (klubb?.epost && slot) {
+    const tidTekst = `${formatUkedag(slot.ukedag)} ${formatTimeShort(slot.fra_kl)}–${formatTimeShort(slot.til_kl)}`
+    if (status === 'godkjent') {
+      await sendEmail({
+        to: klubb.epost,
+        subject: `Søknad godkjent — ${hallNavn}`,
+        html: emailLayout({
+          title: 'Søknaden din ble godkjent',
+          body: `
+            <p>Hei ${klubb.navn},</p>
+            <p>Administrator har <strong>godkjent</strong> søknaden din om tid på <strong>${hallNavn}</strong>:</p>
+            <p style="background:#f3f4f6;padding:10px 14px;border-radius:8px"><strong>${tidTekst}</strong></p>
+            <p>Treningstiden er nå tildelt klubben deres.</p>
+          `,
+        }),
+      })
+    } else {
+      await sendEmail({
+        to: klubb.epost,
+        subject: `Søknad avslått — ${hallNavn}`,
+        html: emailLayout({
+          title: 'Søknaden din ble avslått',
+          body: `
+            <p>Hei ${klubb.navn},</p>
+            <p>Administrator har dessverre <strong>avslått</strong> søknaden din om tid på <strong>${hallNavn}</strong> (${tidTekst}).</p>
+            <p>Ta kontakt med idrettssekretariatet hvis du har spørsmål.</p>
+          `,
+        }),
+      })
+    }
+  }
+
+  // E-post til andre søkere som ble auto-avslått
+  if (status === 'godkjent' && autoAvslattKlubber.length > 0 && slot) {
+    const tidTekst = `${formatUkedag(slot.ukedag)} ${formatTimeShort(slot.fra_kl)}–${formatTimeShort(slot.til_kl)}`
+    await Promise.all(autoAvslattKlubber.map(k => sendEmail({
+      to: k.epost,
+      subject: `Søknad avslått — ${hallNavn}`,
+      html: emailLayout({
+        title: 'Søknaden din ble avslått',
+        body: `
+          <p>Hei ${k.navn},</p>
+          <p>Treningstiden du søkte på er dessverre tildelt en annen klubb:</p>
+          <p style="background:#f3f4f6;padding:10px 14px;border-radius:8px"><strong>${hallNavn}</strong> — ${tidTekst}</p>
+          <p>Du kan fortsatt søke på andre ledige tider i systemet.</p>
+        `,
+      }),
+    })))
+  }
+
   return NextResponse.json({ ok: true })
 }

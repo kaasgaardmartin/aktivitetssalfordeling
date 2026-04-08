@@ -6,7 +6,7 @@ import { createServerClientInstance, createAdminClient } from '@/lib/supabase'
  * Returns the admin row if valid, or a NextResponse error to return immediately.
  */
 export async function verifyAdmin(): Promise<
-  { admin: { id: string }; error?: never } | { admin?: never; error: NextResponse }
+  { admin: { id: string; epost: string | null }; error?: never } | { admin?: never; error: NextResponse }
 > {
   try {
     const serverClient = await createServerClientInstance()
@@ -27,7 +27,7 @@ export async function verifyAdmin(): Promise<
       return { error: NextResponse.json({ error: 'Ikke admin' }, { status: 403 }) }
     }
 
-    return { admin: adminRow }
+    return { admin: { id: adminRow.id, epost: user.email ?? null } }
   } catch {
     return { error: NextResponse.json({ error: 'Auth-feil' }, { status: 500 }) }
   }

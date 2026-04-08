@@ -26,3 +26,19 @@ next-env.d.ts
 .DS_Store
 *.pem
 npm-debug.log*
+
+# claude
+.claude/
+
+# engangs-import-artefakter (Excel → SQL, april 2026)
+b*.sql
+batch_*.sql
+g*.sql
+group_*.sql
+import.sql
+import_batch_*.sql
+exec_b*.sql
+remaining_batches.sql
+batches.json
+import_data.json
+parse_excel.py
