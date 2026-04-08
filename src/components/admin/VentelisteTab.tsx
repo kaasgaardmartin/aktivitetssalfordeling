@@ -26,7 +26,7 @@ export default function VentelisteTab({ venteliste }: Props) {
             <p className="font-semibold text-sm text-gray-900">{v.klubber?.navn}</p>
             <div className="flex gap-2 mt-1">
               {v.haller && <span className="badge bg-gray-100 text-gray-600">{v.haller.navn}</span>}
-              {v.gruppe && <span className="badge bg-blue-50 text-blue-700">{v.gruppe.charAt(0).toUpperCase() + v.gruppe.slice(1)}</span>}
+              {v.gruppe && <span className="badge bg-blue-100 text-blue-900 ring-1 ring-blue-300">{v.gruppe.charAt(0).toUpperCase() + v.gruppe.slice(1)}</span>}
               <span className="text-xs text-gray-600">{new Date(v.meldt_dato).toLocaleDateString('nb-NO')}</span>
             </div>
           </div>

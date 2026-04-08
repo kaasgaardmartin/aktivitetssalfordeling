@@ -26,7 +26,7 @@ export default function SoknaderTab({ soknader, onHandleSoknad }: Props) {
             <div className="flex gap-2 mt-0.5">
               <span className="badge bg-gray-100 text-gray-600">{apps[0].ukedag.charAt(0).toUpperCase() + apps[0].ukedag.slice(1)} {formatTime(apps[0].fra_kl)}–{formatTime(apps[0].til_kl)}</span>
               {apps[0].underlag && <span className="badge bg-gray-100 text-gray-600">{apps[0].underlag}</span>}
-              <span className="badge bg-amber-50 text-amber-700">{apps.length} søker{apps.length > 1 ? 'e' : ''}</span>
+              <span className="badge bg-amber-100 text-amber-900 ring-1 ring-amber-300">{apps.length} søker{apps.length > 1 ? 'e' : ''}</span>
             </div>
           </div>
           {apps.map((app) => (
@@ -37,7 +37,7 @@ export default function SoknaderTab({ soknader, onHandleSoknad }: Props) {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="text-sm font-semibold text-gray-900">{app.klubb_navn}</p>
-                  <span className={`badge text-[10px] ${app.gruppe === 'barn' ? 'bg-green-50 text-green-700' : app.gruppe === 'voksne' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'}`}>
+                  <span className={`badge text-[10px] ${app.gruppe === 'barn' ? 'bg-green-100 text-green-900 ring-1 ring-green-300' : app.gruppe === 'voksne' ? 'bg-blue-100 text-blue-900 ring-1 ring-blue-300' : 'bg-purple-100 text-purple-900 ring-1 ring-purple-300'}`}>
                     {app.gruppe.charAt(0).toUpperCase() + app.gruppe.slice(1)}
                   </span>
                 </div>

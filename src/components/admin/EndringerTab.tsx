@@ -53,12 +53,12 @@ export default function EndringerTab({ endringer, onHandleEndring }: Props) {
                   {formatUkedag(g.ukedag)} {formatTime(g.fra_kl)}–{formatTime(g.til_kl)} ({formatVarighet(g.fra_kl, g.til_kl)})
                 </p>
               </div>
-              <div className="rounded-lg bg-blue-50 px-3 py-2">
-                <p className="text-[10px] uppercase tracking-wider text-blue-400 mb-1">Ønsket endring</p>
-                <p className="text-sm font-medium text-blue-900">
+              <div className="rounded-lg bg-blue-100 ring-1 ring-blue-300 px-3 py-2">
+                <p className="text-[10px] uppercase tracking-wider font-semibold text-blue-700 mb-1">Ønsket endring</p>
+                <p className="text-sm font-semibold text-blue-900">
                   {formatUkedag(g.ny_ukedag || g.ukedag)}
                 </p>
-                <p className="text-xs text-blue-700">
+                <p className="text-xs text-blue-800">
                   {formatTime(g.ny_fra_kl || g.fra_kl)}–{formatTime(g.ny_til_kl || g.til_kl)} ({formatVarighet(g.ny_fra_kl || g.fra_kl, g.ny_til_kl || g.til_kl)})
                 </p>
               </div>

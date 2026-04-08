@@ -262,7 +262,7 @@ export default function KlubbOversikt({
                   <p className="text-base font-semibold text-gray-900">{sesong.navn}</p>
                   <p className="text-sm text-gray-600 mt-0.5">Gjennomgå tidene dine — marker det du ønsker å endre eller si opp, og lagre nederst.</p>
                 </div>
-                <span className={`badge whitespace-nowrap ${dagerIgjen < 5 ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
+                <span className={`badge whitespace-nowrap ${dagerIgjen < 5 ? 'bg-red-100 text-red-900 ring-1 ring-red-300' : 'bg-amber-100 text-amber-900 ring-1 ring-amber-300'}`}>
                   Frist: {frist.toLocaleDateString('nb-NO', { day: 'numeric', month: 'long' })}
                 </span>
               </div>
@@ -294,7 +294,7 @@ export default function KlubbOversikt({
                         <div className="flex gap-2 mt-1 flex-wrap">
                           {hal?.underlag && <span className="badge bg-gray-100 text-gray-600">{hal.underlag}</span>}
                           {hal?.adresse && <span className="badge bg-gray-100 text-gray-600">{hal.adresse}</span>}
-                          {hal?.stengedager && <span className="badge bg-amber-50 text-amber-700">Stengt: {hal.stengedager}</span>}
+                          {hal?.stengedager && <span className="badge bg-amber-100 text-amber-900 ring-1 ring-amber-300">Stengt: {hal.stengedager}</span>}
                         </div>
                         {hal?.merknader && (
                           <p className="mt-1.5 text-xs text-gray-600">{hal.merknader}</p>
@@ -312,7 +312,7 @@ export default function KlubbOversikt({
                       const blockKey = block.slot_ids[0]
                       const hasPending = block.slot_ids.some(id => pendingSvar[id])
                       return (
-                        <div key={blockKey} className={`px-4 py-3 ${hasPending ? 'bg-amber-50/40' : ''}`}>
+                        <div key={blockKey} className={`px-4 py-3 ${hasPending ? 'bg-amber-100/60' : ''}`}>
                           <div className="flex items-start gap-3">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-baseline gap-2 flex-wrap">
@@ -321,10 +321,10 @@ export default function KlubbOversikt({
                                 <span className="text-xs text-gray-600">({formatVarighet(block.varighet_min)})</span>
                               </div>
                               <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                                {status === 'uendret' && <span className="badge bg-green-50 text-green-700">Uendret</span>}
-                                {status === 'endret' && <span className="badge bg-blue-50 text-blue-700">Endret</span>}
-                                {status === 'sagt_opp' && <span className="badge bg-gray-100 text-gray-600">Sagt opp</span>}
-                                {hasPending && <span className="badge bg-amber-100 text-amber-800">Ulagret</span>}
+                                {status === 'uendret' && <span className="badge bg-green-100 text-green-900 ring-1 ring-green-300">Uendret</span>}
+                                {status === 'endret' && <span className="badge bg-blue-100 text-blue-900 ring-1 ring-blue-300">Endret</span>}
+                                {status === 'sagt_opp' && <span className="badge bg-gray-200 text-gray-900 ring-1 ring-gray-400">Sagt opp</span>}
+                                {hasPending && <span className="badge bg-amber-200 text-amber-900 ring-1 ring-amber-400">Ulagret</span>}
                               </div>
                             </div>
                             <div className="flex flex-col gap-1.5 shrink-0">
@@ -388,7 +388,7 @@ export default function KlubbOversikt({
                   </p>
                 </div>
                 {saveError && (
-                  <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+                  <div className="rounded-lg bg-red-100 border border-red-300 px-3 py-2 text-sm text-red-900">
                     {saveError}
                   </div>
                 )}
@@ -616,9 +616,9 @@ function SokMerTid({ sesongId }: { sesongId: string }) {
       )}
 
       {sent && (
-        <div className="rounded-xl border border-green-200 bg-green-50 p-5 text-center">
-          <p className="font-semibold text-green-800">Søknad sendt!</p>
-          <p className="text-sm text-green-700 mt-1">Admin vil behandle søknaden og du får beskjed.</p>
+        <div className="rounded-xl border border-green-300 bg-green-100 p-5 text-center">
+          <p className="font-semibold text-green-900">Søknad sendt!</p>
+          <p className="text-sm text-green-800 mt-1">Admin vil behandle søknaden og du får beskjed.</p>
         </div>
       )}
     </div>
@@ -747,7 +747,7 @@ function KlubbProfil({ klubbNavn }: { klubbNavn: string }) {
       </div>
 
       {err && (
-        <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{err}</div>
+        <div className="rounded-lg bg-red-100 border border-red-300 px-3 py-2 text-sm text-red-900">{err}</div>
       )}
 
       <div className="flex items-center justify-between gap-3">

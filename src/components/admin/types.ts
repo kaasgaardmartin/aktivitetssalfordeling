@@ -163,14 +163,14 @@ export const UKEDAG_ORDER = ['mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag']
 export const UKEDAG_SHORT: Record<string, string> = { mandag: 'Man', tirsdag: 'Tir', onsdag: 'Ons', torsdag: 'Tor', fredag: 'Fre' }
 
 export const IDRETT_COLORS: Record<string, string> = {
-  kickboksing: 'bg-blue-50 text-blue-800',
-  boksing: 'bg-amber-50 text-amber-800',
-  kampsport: 'bg-purple-50 text-purple-800',
-  judo: 'bg-green-50 text-green-800',
-  bryting: 'bg-orange-50 text-orange-800',
-  dans: 'bg-pink-50 text-pink-800',
-  fekting: 'bg-teal-50 text-teal-800',
-  bordtennis: 'bg-cyan-50 text-cyan-800',
+  kickboksing: 'bg-blue-100 text-blue-900 ring-1 ring-inset ring-blue-300',
+  boksing: 'bg-amber-100 text-amber-900 ring-1 ring-inset ring-amber-300',
+  kampsport: 'bg-purple-100 text-purple-900 ring-1 ring-inset ring-purple-300',
+  judo: 'bg-green-100 text-green-900 ring-1 ring-inset ring-green-300',
+  bryting: 'bg-orange-100 text-orange-900 ring-1 ring-inset ring-orange-300',
+  dans: 'bg-pink-100 text-pink-900 ring-1 ring-inset ring-pink-300',
+  fekting: 'bg-teal-100 text-teal-900 ring-1 ring-inset ring-teal-300',
+  bordtennis: 'bg-cyan-100 text-cyan-900 ring-1 ring-inset ring-cyan-300',
 }
 
 export const UNDERLAG_OPTIONS = ['Puslematter', 'Brytematter', 'Judomatter', 'Sportsgulv', 'Parkett', 'Kunstdekke', 'Annet']
@@ -180,7 +180,7 @@ export const TIME_ROWS = ['15:00','15:30','16:00','16:30','17:00','17:30','18:00
 // Utilities
 export function idrettColor(idrett?: string | null) {
   const key = (idrett ?? '').toLowerCase()
-  return Object.entries(IDRETT_COLORS).find(([k]) => key.includes(k))?.[1] ?? 'bg-gray-100 text-gray-700'
+  return Object.entries(IDRETT_COLORS).find(([k]) => key.includes(k))?.[1] ?? 'bg-gray-200 text-gray-900 ring-1 ring-inset ring-gray-400'
 }
 
 export function formatTime(t: string) { return t?.slice(0, 5) ?? '' }

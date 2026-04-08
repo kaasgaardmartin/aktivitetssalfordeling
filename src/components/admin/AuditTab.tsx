@@ -14,17 +14,17 @@ interface AuditEntry {
 }
 
 const HANDLING_LABELS: Record<string, { label: string; color: string }> = {
-  endring_godkjent: { label: 'Endring godkjent', color: 'bg-green-50 text-green-700' },
-  endring_avslatt: { label: 'Endring avslått', color: 'bg-red-50 text-red-700' },
-  soknad_godkjent: { label: 'Søknad godkjent', color: 'bg-green-50 text-green-700' },
-  soknad_avslatt: { label: 'Søknad avslått', color: 'bg-red-50 text-red-700' },
-  hall_opprettet: { label: 'Hall opprettet', color: 'bg-blue-50 text-blue-700' },
-  hall_oppdatert: { label: 'Hall oppdatert', color: 'bg-blue-50 text-blue-700' },
-  hall_slettet: { label: 'Hall slettet', color: 'bg-red-50 text-red-700' },
+  endring_godkjent: { label: 'Endring godkjent', color: 'bg-green-100 text-green-900 ring-1 ring-green-300' },
+  endring_avslatt: { label: 'Endring avslått', color: 'bg-red-100 text-red-900 ring-1 ring-red-300' },
+  soknad_godkjent: { label: 'Søknad godkjent', color: 'bg-green-100 text-green-900 ring-1 ring-green-300' },
+  soknad_avslatt: { label: 'Søknad avslått', color: 'bg-red-100 text-red-900 ring-1 ring-red-300' },
+  hall_opprettet: { label: 'Hall opprettet', color: 'bg-blue-100 text-blue-900 ring-1 ring-blue-300' },
+  hall_oppdatert: { label: 'Hall oppdatert', color: 'bg-blue-100 text-blue-900 ring-1 ring-blue-300' },
+  hall_slettet: { label: 'Hall slettet', color: 'bg-red-100 text-red-900 ring-1 ring-red-300' },
 }
 
 function badge(handling: string) {
-  return HANDLING_LABELS[handling] ?? { label: handling, color: 'bg-gray-100 text-gray-700' }
+  return HANDLING_LABELS[handling] ?? { label: handling, color: 'bg-gray-200 text-gray-900 ring-1 ring-gray-400' }
 }
 
 function formatDate(t: string) {

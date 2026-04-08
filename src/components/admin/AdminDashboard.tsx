@@ -337,7 +337,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
           </div>
           <span className="text-sm font-semibold text-gray-900 hidden sm:inline">Aktivitetssaler Oslo</span>
           <span className="h-4 w-px bg-gray-200 hidden sm:inline" />
-          <span className="rounded bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">Admin</span>
+          <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-900 ring-1 ring-blue-300">Admin</span>
         </div>
         <div className="flex items-center gap-2 md:gap-3">
           <button onClick={() => setShowNySesong(true)} className="btn text-xs hidden sm:inline-flex">+ Ny sesong</button>
@@ -384,7 +384,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                     <p className="text-xs font-medium text-gray-900 leading-snug">{h.navn}</p>
                     <p className="text-[10px] text-gray-600">{hSlotCount} slots</p>
                   </div>
-                  {hSok > 0 && <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">{hSok}</span>}
+                  {hSok > 0 && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900 ring-1 ring-amber-300">{hSok}</span>}
                 </button>
               )
             })}
@@ -410,7 +410,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                     {selectedHal.adresse && <p className="text-xs text-gray-600 mt-0.5">{selectedHal.adresse}</p>}
                     <div className="flex gap-2 mt-1 flex-wrap">
                       {selectedHal.underlag && <span className="badge bg-gray-100 text-gray-600">{selectedHal.underlag}</span>}
-                      {selectedHal.stengedager && <span className="badge bg-amber-50 text-amber-600">Stengt: {selectedHal.stengedager}</span>}
+                      {selectedHal.stengedager && <span className="badge bg-amber-100 text-amber-900 ring-1 ring-amber-300">Stengt: {selectedHal.stengedager}</span>}
                     </div>
                     {selectedHal.bilder && selectedHal.bilder.length > 0 && (
                       <div className="flex gap-2 mt-2 overflow-x-auto">
@@ -443,24 +443,24 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                 <div className="card overflow-hidden">
                   <div className="overflow-x-auto">
                     <div className="grid min-w-[500px]" style={{ gridTemplateColumns: '60px repeat(5, 1fr)' }}>
-                      <div className="border-b border-r border-gray-200 bg-gray-50 p-2" />
+                      <div className="border-b border-r border-gray-300 bg-gray-100 p-2" />
                       {UKEDAG_ORDER.map(d => (
-                        <div key={d} className="border-b border-r border-gray-200 bg-gray-50 px-2 py-2 text-center text-xs font-semibold uppercase tracking-wider text-gray-600 last:border-r-0">{UKEDAG_SHORT[d]}</div>
+                        <div key={d} className="border-b border-r border-gray-300 bg-gray-100 px-2 py-2 text-center text-xs font-bold uppercase tracking-wider text-gray-800 last:border-r-0">{UKEDAG_SHORT[d]}</div>
                       ))}
                       {TIME_ROWS.map(time => (
                         <div key={time} className="contents">
-                          <div className="border-b border-r border-gray-200 bg-gray-50 px-2 py-0 flex items-center">
-                            <span className="text-[10px] font-mono text-gray-600">{time}</span>
+                          <div className="border-b border-r border-gray-300 bg-gray-100 px-2 py-0 flex items-center">
+                            <span className="text-[10px] font-mono font-semibold text-gray-800">{time}</span>
                           </div>
                           {UKEDAG_ORDER.map(dag => {
                             const slot = halSlots.find(s => s.ukedag === dag && formatTime(s.fra_kl) === time)
                             return (
                               <div key={dag}
                                 onClick={() => slot && openSlotModal(slot)}
-                                className={`h-9 border-b border-r border-gray-200 last:border-r-0 cursor-pointer transition-colors ${slot?.klubb_id ? idrettColor(slot.klubber?.idrett) + ' hover:opacity-80' : 'hover:bg-green-50'}`}>
+                                className={`h-9 border-b border-r border-gray-300 last:border-r-0 cursor-pointer transition-colors ${slot?.klubb_id ? idrettColor(slot.klubber?.idrett) + ' hover:opacity-80' : 'hover:bg-green-100'}`}>
                                 {slot?.klubb_id && (
                                   <div className="flex h-full items-center px-1.5 overflow-hidden">
-                                    <span className="truncate text-[10px] font-medium">{slot.klubber?.navn?.split(' ')[0]}</span>
+                                    <span className="truncate text-[10px] font-semibold">{slot.klubber?.navn?.split(' ')[0]}</span>
                                   </div>
                                 )}
                               </div>
@@ -471,17 +471,17 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                     </div>
                   </div>
                   {/* Legend */}
-                  <div className="flex gap-3 flex-wrap border-t border-gray-200 bg-gray-50 px-4 py-2">
+                  <div className="flex gap-3 flex-wrap border-t border-gray-300 bg-gray-100 px-4 py-2">
                     {Object.entries(idrettColor).length && Object.keys({
                       kickboksing: 1, boksing: 1, kampsport: 1, judo: 1, bryting: 1, dans: 1
                     }).map(k => (
-                      <span key={k} className="flex items-center gap-1 text-[10px] text-gray-600">
+                      <span key={k} className="flex items-center gap-1 text-[10px] font-medium text-gray-800">
                         <span className={`h-2.5 w-2.5 rounded-sm ${idrettColor(k)}`} />
                         {k.charAt(0).toUpperCase() + k.slice(1)}
                       </span>
                     ))}
-                    <span className="flex items-center gap-1 text-[10px] text-gray-600">
-                      <span className="h-2.5 w-2.5 rounded-sm bg-gray-100" />Ledig
+                    <span className="flex items-center gap-1 text-[10px] font-medium text-gray-800">
+                      <span className="h-2.5 w-2.5 rounded-sm bg-white ring-1 ring-gray-400" />Ledig
                     </span>
                   </div>
                 </div>
@@ -561,7 +561,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
             {(() => {
               const n = generate30minSlots(nySlotForm.fra_kl, nySlotForm.til_kl).length
               return n > 0 ? (
-                <p className="text-xs text-gray-600 bg-blue-50 rounded-lg px-3 py-2">
+                <p className="text-xs text-blue-900 bg-blue-100 ring-1 ring-blue-300 rounded-lg px-3 py-2">
                   {n} blokk{n > 1 ? 'er' : ''} à 30 min ({(n * 0.5).toFixed(1).replace('.0', '')}t totalt)
                 </p>
               ) : null
