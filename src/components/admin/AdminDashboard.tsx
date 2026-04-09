@@ -9,6 +9,7 @@ import EndringerTab from './EndringerTab'
 import VentelisteTab from './VentelisteTab'
 import KlubberTab from './KlubberTab'
 import AuditTab from './AuditTab'
+import KapasitetTab from './KapasitetTab'
 
 // Leaflet depends on window/document, so load client-side only
 const HallerKart = dynamic(() => import('./HallerKart'), { ssr: false, loading: () => <p className="p-6 text-xs text-gray-600">Laster kart...</p> })
@@ -25,7 +26,7 @@ interface DashboardProps {
 }
 
 export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: initialSlots, soknader: initialSoknader, venteliste, klubber, endringer: initialEndringer }: DashboardProps) {
-  const [activeTab, setActiveTab] = useState<'haller' | 'soknader' | 'endringer' | 'venteliste' | 'klubber' | 'kart' | 'logg'>('haller')
+  const [activeTab, setActiveTab] = useState<'haller' | 'kapasitet' | 'soknader' | 'endringer' | 'venteliste' | 'klubber' | 'kart' | 'logg'>('haller')
   const [selectedHalId, setSelectedHalId] = useState<string | null>(haller[0]?.id ?? null)
   const [soknader, setSoknader] = useState(initialSoknader)
   const [slots, setSlots] = useState(initialSlots)
@@ -55,6 +56,9 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
   const [editHallBilder, setEditHallBilder] = useState<string[]>([])
   const [uploadingBilde, setUploadingBilde] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [selectedSlotIds, setSelectedSlotIds] = useState<Set<string>>(new Set())
+  const [bulkKlubbId, setBulkKlubbId] = useState('')
+  const [bulkSaving, setBulkSaving] = useState(false)
   const bildeInputRef = useRef<HTMLInputElement>(null)
 
   const selectedHal = hallerState.find(h => h.id === selectedHalId)
@@ -233,6 +237,111 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
     }
   }
 
+  function toggleSlotSelection(slotId: string) {
+    setSelectedSlotIds(prev => {
+      const next = new Set(prev)
+      if (next.has(slotId)) next.delete(slotId)
+      else next.add(slotId)
+      return next
+    })
+  }
+
+  function selectAllLedige() {
+    const ledige = halSlots.filter(s => !s.klubb_id && s.status !== 'utilgjengelig')
+    setSelectedSlotIds(new Set(ledige.map(s => s.id)))
+  }
+
+  function selectDag(dag: string) {
+    const dagSlots = halSlots.filter(s => s.ukedag === dag)
+    const allSelected = dagSlots.every(s => selectedSlotIds.has(s.id))
+    setSelectedSlotIds(prev => {
+      const next = new Set(prev)
+      dagSlots.forEach(s => { if (allSelected) next.delete(s.id); else next.add(s.id) })
+      return next
+    })
+  }
+
+  async function bulkTildelKlubb() {
+    if (selectedSlotIds.size === 0 || !bulkKlubbId) return
+    setBulkSaving(true)
+    const ids = [...selectedSlotIds]
+    // First set all to ledig status (in case any are utilgjengelig)
+    await fetch('/api/tidslots', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, status: 'ledig' }),
+    })
+    // Then assign club to each
+    const results = await Promise.all(ids.map(id =>
+      fetch('/api/tidslots', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, klubb_id: bulkKlubbId }),
+      })
+    ))
+    if (results.every(r => r.ok)) {
+      const tildeltKlubb = klubber.find(k => k.id === bulkKlubbId) ?? null
+      setSlots(prev => prev.map(s => selectedSlotIds.has(s.id) ? { ...s, klubb_id: bulkKlubbId, status: 'ledig', klubber: tildeltKlubb ? { id: tildeltKlubb.id, navn: tildeltKlubb.navn, idrett: tildeltKlubb.idrett } : null } : s))
+      setSelectedSlotIds(new Set())
+      setBulkKlubbId('')
+    }
+    setBulkSaving(false)
+  }
+
+  async function bulkFrigjor() {
+    if (selectedSlotIds.size === 0) return
+    setBulkSaving(true)
+    const ids = [...selectedSlotIds]
+    // Set status to ledig and remove club
+    await fetch('/api/tidslots', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, status: 'ledig' }),
+    })
+    // Remove club assignment from each
+    await Promise.all(ids.map(id =>
+      fetch('/api/tidslots', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, klubb_id: null }),
+      })
+    ))
+    setSlots(prev => prev.map(s => selectedSlotIds.has(s.id) ? { ...s, klubb_id: null, status: 'ledig', klubber: null } : s))
+    setSelectedSlotIds(new Set())
+    setBulkSaving(false)
+  }
+
+  async function bulkMarkerUtilgjengelig() {
+    if (selectedSlotIds.size === 0) return
+    setBulkSaving(true)
+    const ids = [...selectedSlotIds]
+    const res = await fetch('/api/tidslots', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, status: 'utilgjengelig' }),
+    })
+    if (res.ok) {
+      setSlots(prev => prev.map(s => selectedSlotIds.has(s.id) ? { ...s, klubb_id: null, status: 'utilgjengelig', klubber: null } : s))
+      setSelectedSlotIds(new Set())
+    }
+    setBulkSaving(false)
+  }
+
+  async function bulkSlett() {
+    if (selectedSlotIds.size === 0) return
+    if (!confirm(`Er du sikker på at du vil slette ${selectedSlotIds.size} tidslot${selectedSlotIds.size !== 1 ? 'er' : ''}?`)) return
+    setBulkSaving(true)
+    const ids = [...selectedSlotIds]
+    const results = await Promise.all(ids.map(id =>
+      fetch(`/api/tidslots?id=${id}`, { method: 'DELETE' })
+    ))
+    if (results.every(r => r.ok)) {
+      setSlots(prev => prev.filter(s => !selectedSlotIds.has(s.id)))
+      setSelectedSlotIds(new Set())
+    }
+    setBulkSaving(false)
+  }
+
   async function opprettSlot(e: React.FormEvent) {
     e.preventDefault()
     if (!selectedHalId || !aktivSesong) return
@@ -408,6 +517,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
       <div className="flex border-b border-gray-200 bg-white px-3 md:px-5 overflow-x-auto">
         {([
           { id: 'haller', label: 'Halloversikt' },
+          { id: 'kapasitet', label: 'Kapasitet' },
           { id: 'soknader', label: `Søknader${ubesvarteSok ? ` (${ubesvarteSok})` : ''}` },
           { id: 'endringer', label: `Endringer${ubehandledeEndringer ? ` (${ubehandledeEndringer})` : ''}` },
           { id: 'venteliste', label: 'Venteliste' },
@@ -432,7 +542,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
               const hSlotCount = slots.filter(s => s.hal_id === h.id).length
               const hSok = soknader.filter(s => s.hal_id === h.id).length
               return (
-                <button key={h.id} onClick={() => { setSelectedHalId(h.id); setSidebarOpen(false) }}
+                <button key={h.id} onClick={() => { setSelectedHalId(h.id); setSidebarOpen(false); setSelectedSlotIds(new Set()) }}
                   className={`flex w-full items-center justify-between border-l-2 px-4 py-2 text-left transition-colors hover:bg-gray-50 ${selectedHalId === h.id ? 'border-gray-900 bg-gray-50' : 'border-transparent'}`}>
                   <div>
                     <p className="text-xs font-medium text-gray-900 leading-snug">{h.navn}</p>
@@ -460,6 +570,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                       <button onClick={() => openEditHall(selectedHal)} className="text-gray-500 hover:text-gray-700 transition-colors" title="Rediger hall">
                         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>
                       </button>
+                      <span className="text-[10px] text-gray-500 italic ml-1">Hold Ctrl/Cmd og klikk for flervalg</span>
                     </div>
                     {selectedHal.adresse && <p className="text-xs text-gray-600 mt-0.5">{selectedHal.adresse}</p>}
                     <div className="flex gap-2 mt-1 flex-wrap">
@@ -499,7 +610,9 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                     <div className="grid min-w-[500px]" style={{ gridTemplateColumns: '60px repeat(5, 1fr)' }}>
                       <div className="border-b border-r border-gray-300 bg-gray-100 p-2" />
                       {UKEDAG_ORDER.map(d => (
-                        <div key={d} className="border-b border-r border-gray-300 bg-gray-100 px-2 py-2 text-center text-xs font-bold uppercase tracking-wider text-gray-800 last:border-r-0">{UKEDAG_SHORT[d]}</div>
+                        <div key={d} onClick={() => selectDag(d)}
+                          className="border-b border-r border-gray-300 bg-gray-100 px-2 py-2 text-center text-xs font-bold uppercase tracking-wider text-gray-800 last:border-r-0 cursor-pointer hover:bg-gray-200 select-none"
+                          title={`Klikk for å velge alle slots på ${UKEDAG_SHORT[d]}`}>{UKEDAG_SHORT[d]}</div>
                       ))}
                       {TIME_ROWS.map(time => (
                         <div key={time} className="contents">
@@ -509,22 +622,37 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                           {UKEDAG_ORDER.map(dag => {
                             const slot = halSlots.find(s => s.ukedag === dag && formatTime(s.fra_kl) === time)
                             const isUtilgj = slot?.status === 'utilgjengelig'
-                            const klassen = isUtilgj
-                              ? 'slot-utilgjengelig hover:opacity-80'
-                              : slot?.klubb_id
-                                ? idrettColor(slot.klubber?.idrett) + ' hover:opacity-80'
-                                : 'hover:bg-green-100'
+                            const isSelected = slot ? selectedSlotIds.has(slot.id) : false
+                            const klassen = isSelected
+                              ? 'ring-2 ring-inset ring-blue-500 bg-blue-50'
+                              : isUtilgj
+                                ? 'slot-utilgjengelig hover:opacity-80'
+                                : slot?.klubb_id
+                                  ? idrettColor(slot.klubber?.idrett) + ' hover:opacity-80'
+                                  : 'hover:bg-green-100'
                             return (
                               <div key={dag}
-                                onClick={() => slot && openSlotModal(slot)}
-                                title={isUtilgj ? 'Ikke tilgjengelig' : slot?.klubber?.navn ?? ''}
+                                onClick={(e) => {
+                                  if (!slot) return
+                                  if (e.ctrlKey || e.metaKey || selectedSlotIds.size > 0) {
+                                    toggleSlotSelection(slot.id)
+                                  } else {
+                                    openSlotModal(slot)
+                                  }
+                                }}
+                                title={isSelected ? 'Valgt' : isUtilgj ? 'Ikke tilgjengelig' : slot?.klubber?.navn ?? ''}
                                 className={`h-9 border-b border-r border-gray-300 last:border-r-0 cursor-pointer transition-colors ${klassen}`}>
-                                {slot?.klubb_id && !isUtilgj && (
+                                {isSelected && (
+                                  <div className="flex h-full items-center justify-center">
+                                    <svg className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                                  </div>
+                                )}
+                                {!isSelected && slot?.klubb_id && !isUtilgj && (
                                   <div className="flex h-full items-center px-1.5 overflow-hidden">
                                     <span className="truncate text-[10px] font-semibold">{slot.klubber?.navn?.split(' ')[0]}</span>
                                   </div>
                                 )}
-                                {isUtilgj && (
+                                {!isSelected && isUtilgj && (
                                   <div className="flex h-full items-center justify-center">
                                     <span className="text-[9px] font-bold uppercase tracking-tight text-gray-700">×</span>
                                   </div>
@@ -552,6 +680,40 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                     </span>
                   </div>
                 </div>
+
+                {/* Bulk action bar */}
+                {selectedSlotIds.size > 0 && (
+                  <div className="card px-4 py-3 border-blue-300 bg-blue-50 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-blue-900">
+                        {selectedSlotIds.size} slot{selectedSlotIds.size !== 1 ? 's' : ''} valgt ({(selectedSlotIds.size * 0.5).toFixed(1).replace('.0', '')}t)
+                      </p>
+                      <div className="flex gap-2">
+                        <button onClick={selectAllLedige} className="text-[10px] text-blue-700 hover:underline">Velg alle ledige</button>
+                        <button onClick={() => setSelectedSlotIds(new Set())} className="text-[10px] text-gray-600 hover:underline">Fjern valg</button>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-end gap-3">
+                      <div className="flex-1 min-w-[200px]">
+                        <label className="label mb-1">Tildel klubb</label>
+                        <div className="flex gap-2">
+                          <select className="input flex-1" value={bulkKlubbId} onChange={e => setBulkKlubbId(e.target.value)}>
+                            <option value="">— Velg klubb —</option>
+                            {klubber.map(k => (
+                              <option key={k.id} value={k.id}>{k.navn}{k.idrett ? ` (${k.idrett})` : ''}</option>
+                            ))}
+                          </select>
+                          <button onClick={bulkTildelKlubb} disabled={!bulkKlubbId || bulkSaving} className="btn-primary text-xs whitespace-nowrap">
+                            {bulkSaving ? 'Lagrer...' : 'Tildel'}
+                          </button>
+                        </div>
+                      </div>
+                      <button onClick={bulkFrigjor} disabled={bulkSaving} className="btn text-xs">Frigjør alle</button>
+                      <button onClick={bulkMarkerUtilgjengelig} disabled={bulkSaving} className="btn text-xs">Marker utilgjengelig</button>
+                      <button onClick={bulkSlett} disabled={bulkSaving} className="btn btn-danger text-xs">Slett valgte</button>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -559,6 +721,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
       )}
 
       {/* ── TAB COMPONENTS ── */}
+      {activeTab === 'kapasitet' && <KapasitetTab haller={hallerState} slots={slots} />}
       {activeTab === 'soknader' && <SoknaderTab soknader={soknader.filter(s => s.status === 'venter')} onHandleSoknad={handleSoknad} />}
       {activeTab === 'endringer' && <EndringerTab endringer={endringer} onHandleEndring={handleEndring} />}
       {activeTab === 'venteliste' && <VentelisteTab venteliste={venteliste} />}
