@@ -353,6 +353,26 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
     setBulkSaving(false)
   }
 
+  async function opprettSlotForCell(dag: string, time: string) {
+    if (!selectedHalId || !aktivSesong) return
+    const til = `${String(Math.floor((parseInt(time.split(':')[0]) * 60 + parseInt(time.split(':')[1]) + 30) / 60)).padStart(2, '0')}:${String((parseInt(time.split(':')[0]) * 60 + parseInt(time.split(':')[1]) + 30) % 60).padStart(2, '0')}`
+    const res = await fetch('/api/tidslots', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hal_id: selectedHalId, sesong_id: aktivSesong.id, ukedag: dag, fra_kl: time, til_kl: til }),
+    })
+    if (res.ok) {
+      const created = (await res.json())[0]
+      const newSlot: Slot = {
+        ...created,
+        haller: { id: selectedHalId, navn: selectedHal?.navn ?? '', underlag: selectedHal?.underlag ?? null },
+        klubber: null,
+      }
+      setSlots(prev => [...prev, newSlot])
+      openSlotModal(newSlot)
+    }
+  }
+
   async function opprettSlot(e: React.FormEvent) {
     e.preventDefault()
     if (!selectedHalId || !aktivSesong) return
@@ -646,14 +666,17 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                             return (
                               <div key={dag}
                                 onClick={(e) => {
-                                  if (!slot) return
+                                  if (!slot) {
+                                    opprettSlotForCell(dag, time)
+                                    return
+                                  }
                                   if (e.ctrlKey || e.metaKey || selectedSlotIds.size > 0) {
                                     toggleSlotSelection(slot.id)
                                   } else {
                                     openSlotModal(slot)
                                   }
                                 }}
-                                title={isSelected ? 'Valgt' : isUtilgj ? 'Ikke tilgjengelig' : slot?.klubber?.navn ?? ''}
+                                title={isSelected ? 'Valgt' : isUtilgj ? 'Ikke tilgjengelig' : slot?.klubber?.navn ?? 'Klikk for å opprette slot'}
                                 className={`h-9 border-b border-r border-gray-300 last:border-r-0 cursor-pointer transition-colors ${klassen}`}>
                                 {isSelected && (
                                   <div className="flex h-full items-center justify-center">
