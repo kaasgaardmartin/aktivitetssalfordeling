@@ -262,12 +262,48 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
     setSelectedSlotIds(new Set(ledige.map(s => s.id)))
   }
 
-  function selectDag(dag: string) {
+  async function selectDag(dag: string) {
     const dagSlots = halSlots.filter(s => s.ukedag === dag)
-    const allSelected = dagSlots.every(s => selectedSlotIds.has(s.id))
+    // Hvis alle eksisterende er valgt, deselect
+    if (dagSlots.length === TIME_ROWS.length && dagSlots.every(s => selectedSlotIds.has(s.id))) {
+      setSelectedSlotIds(prev => {
+        const next = new Set(prev)
+        dagSlots.forEach(s => next.delete(s.id))
+        return next
+      })
+      return
+    }
+    // Opprett manglende slots for hele dagen
+    if (!selectedHalId || !aktivSesong) return
+    const existingTimes = new Set(dagSlots.map(s => formatTime(s.fra_kl)))
+    const missingTimes = TIME_ROWS.filter(t => !existingTimes.has(t))
+    let newSlots: Slot[] = []
+    if (missingTimes.length > 0) {
+      const payload = missingTimes.map(time => {
+        const mins = parseInt(time.split(':')[0]) * 60 + parseInt(time.split(':')[1]) + 30
+        const til = `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`
+        return { hal_id: selectedHalId, sesong_id: aktivSesong.id, ukedag: dag, fra_kl: time, til_kl: til }
+      })
+      const res = await fetch('/api/tidslots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (res.ok) {
+        const created = await res.json()
+        newSlots = created.map((c: any) => ({
+          ...c,
+          haller: { id: selectedHalId, navn: selectedHal?.navn ?? '', underlag: selectedHal?.underlag ?? null },
+          klubber: null,
+        }))
+        setSlots(prev => [...prev, ...newSlots])
+      }
+    }
+    // Velg alle slots for denne dagen
+    const allIds = [...dagSlots.map(s => s.id), ...newSlots.map(s => s.id)]
     setSelectedSlotIds(prev => {
       const next = new Set(prev)
-      dagSlots.forEach(s => { if (allSelected) next.delete(s.id); else next.add(s.id) })
+      allIds.forEach(id => next.add(id))
       return next
     })
   }
