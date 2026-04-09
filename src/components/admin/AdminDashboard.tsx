@@ -353,7 +353,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
     setBulkSaving(false)
   }
 
-  async function opprettSlotForCell(dag: string, time: string) {
+  async function opprettSlotForCell(dag: string, time: string, addToSelection: boolean) {
     if (!selectedHalId || !aktivSesong) return
     const til = `${String(Math.floor((parseInt(time.split(':')[0]) * 60 + parseInt(time.split(':')[1]) + 30) / 60)).padStart(2, '0')}:${String((parseInt(time.split(':')[0]) * 60 + parseInt(time.split(':')[1]) + 30) % 60).padStart(2, '0')}`
     const res = await fetch('/api/tidslots', {
@@ -369,7 +369,11 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
         klubber: null,
       }
       setSlots(prev => [...prev, newSlot])
-      openSlotModal(newSlot)
+      if (addToSelection) {
+        setSelectedSlotIds(prev => new Set([...prev, newSlot.id]))
+      } else {
+        openSlotModal(newSlot)
+      }
     }
   }
 
@@ -667,7 +671,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                               <div key={dag}
                                 onClick={(e) => {
                                   if (!slot) {
-                                    opprettSlotForCell(dag, time)
+                                    opprettSlotForCell(dag, time, e.ctrlKey || e.metaKey || selectedSlotIds.size > 0)
                                     return
                                   }
                                   if (e.ctrlKey || e.metaKey || selectedSlotIds.size > 0) {
