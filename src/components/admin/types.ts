@@ -47,6 +47,7 @@ export interface Slot {
   fra_kl: string
   til_kl: string
   klubb_id: string | null
+  idrett: string | null
   status?: 'ledig' | 'utilgjengelig'
   haller?: { id: string; navn: string; underlag: string | null; merknader?: string | null; stengedager?: string | null; adresse?: string | null; postnummer?: string | null; poststed?: string | null; kilde_url?: string | null }
   klubber?: { id: string; navn: string; idrett: string | null } | null

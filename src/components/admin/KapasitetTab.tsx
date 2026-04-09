@@ -34,7 +34,7 @@ export default function KapasitetTab({ haller, slots }: KapasitetTabProps) {
     hSlots.filter(s => s.klubb_id && s.klubber).forEach(s => {
       const k = klubbMap.get(s.klubb_id!)
       if (k) k.antall++
-      else klubbMap.set(s.klubb_id!, { navn: s.klubber!.navn, idrett: s.klubber!.idrett, antall: 1 })
+      else klubbMap.set(s.klubb_id!, { navn: s.klubber!.navn, idrett: s.idrett ?? s.klubber!.idrett, antall: 1 })
     })
 
     return { hall: h, total, tildelt, ledig, utilgjengelig, perDag, klubber: [...klubbMap.values()].sort((a, b) => b.antall - a.antall) }

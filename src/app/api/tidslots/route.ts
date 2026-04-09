@@ -11,6 +11,7 @@ const slotSchema = z.object({
   fra_kl: z.string().regex(/^\d{2}:\d{2}$/, 'Ugyldig tidsformat'),
   til_kl: z.string().regex(/^\d{2}:\d{2}$/, 'Ugyldig tidsformat'),
   klubb_id: z.string().uuid().nullable().optional(),
+  idrett: z.string().nullable().optional(),
 })
 
 // PATCH støtter to former:
@@ -20,10 +21,16 @@ const slotUpdateSchema = z.union([
   z.object({
     id: z.string().uuid(),
     klubb_id: z.string().uuid().nullable(),
+    idrett: z.string().nullable().optional(),
   }),
   z.object({
     ids: z.array(z.string().uuid()).min(1),
     status: z.enum(['ledig', 'utilgjengelig']),
+  }),
+  z.object({
+    ids: z.array(z.string().uuid()).min(1),
+    klubb_id: z.string().uuid().nullable(),
+    idrett: z.string().nullable().optional(),
   }),
 ])
 
@@ -91,11 +98,11 @@ export async function PATCH(request: NextRequest) {
   const supabase = createAdminClient()
 
   // Form 2: bulk status update
-  if ('ids' in parsed.data) {
+  if ('ids' in parsed.data && 'status' in parsed.data) {
     const { ids, status } = parsed.data
     // Når man markerer som utilgjengelig, frigjør klubb samtidig
     const update: any = { status }
-    if (status === 'utilgjengelig') update.klubb_id = null
+    if (status === 'utilgjengelig') { update.klubb_id = null; update.idrett = null }
 
     const { error } = await supabase
       .from('tidslots')
@@ -119,10 +126,28 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ ok: true, count: ids.length })
   }
 
+  // Form 3: bulk club assignment
+  if ('ids' in parsed.data && 'klubb_id' in parsed.data) {
+    const { ids, klubb_id, idrett } = parsed.data
+    const update: any = { klubb_id }
+    if (idrett !== undefined) update.idrett = idrett
+
+    const { error } = await supabase
+      .from('tidslots')
+      .update(update)
+      .in('id', ids)
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true, count: ids.length })
+  }
+
   // Form 1: enkelt-tildeling (bakoverkompatibel)
+  const update: any = { klubb_id: parsed.data.klubb_id }
+  if ('idrett' in parsed.data && parsed.data.idrett !== undefined) update.idrett = parsed.data.idrett
+
   const { data, error } = await supabase
     .from('tidslots')
-    .update({ klubb_id: parsed.data.klubb_id })
+    .update(update)
     .eq('id', parsed.data.id)
     .select()
     .single()

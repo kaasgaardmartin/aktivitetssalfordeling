@@ -660,7 +660,7 @@ function SokMerTid({ sesongId }: { sesongId: string }) {
                       const klassen = isUtilgj
                         ? 'slot-utilgjengelig cursor-not-allowed'
                         : isTildelt
-                          ? idrettColor(slot?.klubber?.idrett) + ' cursor-not-allowed'
+                          ? idrettColor(slot?.idrett ?? slot?.klubber?.idrett) + ' cursor-not-allowed'
                           : isLedig
                             ? (isSelected ? 'bg-blue-200 ring-2 ring-inset ring-blue-600 cursor-pointer' : 'bg-white hover:bg-blue-50 cursor-pointer')
                             : ''
