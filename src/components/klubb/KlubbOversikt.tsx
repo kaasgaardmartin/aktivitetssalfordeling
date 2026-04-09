@@ -671,7 +671,7 @@ function SokMerTid({ sesongId }: { sesongId: string }) {
                           className={`h-9 border-b border-r border-gray-300 last:border-r-0 transition-colors ${klassen}`}>
                           {isTildelt && (
                             <div className="flex h-full items-center px-1.5 overflow-hidden">
-                              <span className="truncate text-[10px] font-semibold">{slot?.klubber?.navn?.split(' ')[0]}</span>
+                              <span className="truncate text-[10px] font-semibold">{slot?.klubber?.navn}</span>
                             </div>
                           )}
                           {isUtilgj && (

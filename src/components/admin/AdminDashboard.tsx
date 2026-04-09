@@ -689,7 +689,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                                 )}
                                 {!isSelected && slot?.klubb_id && !isUtilgj && (
                                   <div className="flex h-full items-center px-1.5 overflow-hidden">
-                                    <span className="truncate text-[10px] font-semibold">{slot.klubber?.navn?.split(' ')[0]}</span>
+                                    <span className="truncate text-[10px] font-semibold">{slot.klubber?.navn}</span>
                                   </div>
                                 )}
                                 {!isSelected && isUtilgj && (
