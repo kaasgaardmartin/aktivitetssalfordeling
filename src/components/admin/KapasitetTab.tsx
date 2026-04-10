@@ -1,7 +1,7 @@
 'use client'
 
 import type { Hall, Slot } from './types'
-import { UKEDAG_ORDER, UKEDAG_SHORT, formatTime } from './types'
+import { UKEDAG_ORDER, UKEDAG_SHORT, TIME_ROWS, formatTime } from './types'
 
 interface KapasitetTabProps {
   haller: Hall[]
@@ -15,19 +15,26 @@ export default function KapasitetTab({ haller, slots }: KapasitetTabProps) {
       const hSlots = slots.filter(s => s.hal_id === h.id)
       const perDag = UKEDAG_ORDER.map(dag => {
         const dagSlots = hSlots.filter(s => s.ukedag === dag)
-        const ledige = dagSlots.filter(s => !s.klubb_id && s.status !== 'utilgjengelig')
+        const opptattTider = new Set(
+          dagSlots
+            .filter(s => s.klubb_id || s.status === 'utilgjengelig')
+            .map(s => formatTime(s.fra_kl))
+        )
+        // Alle tider som ikke er opptatt er ledige (inkl. tider uten slot)
+        const ledigeTider = TIME_ROWS.filter(t => !opptattTider.has(t)).sort()
         // Grupper sammenhengende ledige tider
-        const sorted = ledige.sort((a, b) => a.fra_kl.localeCompare(b.fra_kl))
         const perioder: { fra: string; til: string }[] = []
-        for (const s of sorted) {
+        for (const t of ledigeTider) {
+          const mins = parseInt(t.split(':')[0]) * 60 + parseInt(t.split(':')[1]) + 30
+          const til = `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`
           const last = perioder[perioder.length - 1]
-          if (last && last.til === formatTime(s.fra_kl)) {
-            last.til = formatTime(s.til_kl)
+          if (last && last.til === t) {
+            last.til = til
           } else {
-            perioder.push({ fra: formatTime(s.fra_kl), til: formatTime(s.til_kl) })
+            perioder.push({ fra: t, til })
           }
         }
-        return { dag, ledig: ledige.length, perioder }
+        return { dag, ledig: ledigeTider.length, perioder }
       })
       const totalLedig = perDag.reduce((s, d) => s + d.ledig, 0)
       return { hall: h, perDag, totalLedig }
