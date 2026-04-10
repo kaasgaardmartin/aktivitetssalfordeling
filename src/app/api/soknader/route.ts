@@ -17,11 +17,21 @@ async function getSession() {
   } catch { return null }
 }
 
-const soknadSchema = z.object({
-  tidslot_id: z.string().uuid(),
-  gruppe: z.enum(['barn', 'voksne', 'begge']),
-  begrunnelse: z.string().min(10).max(500),
-})
+const soknadSchema = z.union([
+  z.object({
+    tidslot_id: z.string().uuid(),
+    gruppe: z.enum(['barn', 'voksne', 'begge']),
+    begrunnelse: z.string().min(10).max(500),
+  }),
+  z.object({
+    hal_id: z.string().uuid(),
+    ukedag: z.enum(['mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lordag', 'sondag']),
+    fra_kl: z.string().regex(/^\d{2}:\d{2}$/),
+    til_kl: z.string().regex(/^\d{2}:\d{2}$/),
+    gruppe: z.enum(['barn', 'voksne', 'begge']),
+    begrunnelse: z.string().min(10).max(500),
+  }),
+])
 
 // POST /api/soknader — submit new application
 export async function POST(request: NextRequest) {
@@ -34,11 +44,43 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient()
 
+  let slotId: string
+
+  if ('tidslot_id' in parsed.data) {
+    slotId = parsed.data.tidslot_id
+  } else {
+    // Find or create slot
+    const { hal_id, ukedag, fra_kl, til_kl } = parsed.data
+    const { data: existing } = await supabase
+      .from('tidslots')
+      .select('id, klubb_id, status')
+      .eq('hal_id', hal_id)
+      .eq('sesong_id', session.sesong_id)
+      .eq('ukedag', ukedag)
+      .eq('fra_kl', fra_kl + ':00')
+      .single()
+
+    if (existing) {
+      if (existing.status === 'utilgjengelig') return NextResponse.json({ error: 'Tiden er markert som utilgjengelig' }, { status: 409 })
+      if (existing.klubb_id) return NextResponse.json({ error: 'Slot er ikke lenger ledig' }, { status: 409 })
+      slotId = existing.id
+    } else {
+      // Create the slot
+      const { data: created, error: createErr } = await supabase
+        .from('tidslots')
+        .insert({ hal_id, sesong_id: session.sesong_id, ukedag, fra_kl: fra_kl + ':00', til_kl: til_kl + ':00' })
+        .select('id')
+        .single()
+      if (createErr || !created) return NextResponse.json({ error: createErr?.message ?? 'Kunne ikke opprette slot' }, { status: 500 })
+      slotId = created.id
+    }
+  }
+
   // Verify slot is actually available
   const { data: slot } = await supabase
     .from('tidslots')
     .select('id, klubb_id, status')
-    .eq('id', parsed.data.tidslot_id)
+    .eq('id', slotId)
     .single()
 
   if (!slot) return NextResponse.json({ error: 'Slot finnes ikke' }, { status: 404 })
@@ -46,20 +88,20 @@ export async function POST(request: NextRequest) {
   if (slot.klubb_id) return NextResponse.json({ error: 'Slot er ikke lenger ledig' }, { status: 409 })
 
   // Check no duplicate application
-  const { data: existing } = await supabase
+  const { data: existingSoknad } = await supabase
     .from('soknader')
     .select('id')
     .eq('klubb_id', session.klubb_id)
-    .eq('tidslot_id', parsed.data.tidslot_id)
+    .eq('tidslot_id', slotId)
     .eq('status', 'venter')
     .single()
 
-  if (existing) return NextResponse.json({ error: 'Søknad allerede sendt' }, { status: 409 })
+  if (existingSoknad) return NextResponse.json({ error: 'Søknad allerede sendt' }, { status: 409 })
 
   const { error } = await supabase.from('soknader').insert({
     sesong_id: session.sesong_id,
     klubb_id: session.klubb_id,
-    tidslot_id: parsed.data.tidslot_id,
+    tidslot_id: slotId,
     gruppe: parsed.data.gruppe,
     begrunnelse: parsed.data.begrunnelse,
     status: 'venter',

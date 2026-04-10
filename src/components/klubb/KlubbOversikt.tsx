@@ -520,7 +520,6 @@ interface LedigPeriode {
   dag: string
   fra: string
   til: string
-  slot_ids: string[]
 }
 
 function SokMerTid({ sesongId }: { sesongId: string }) {
@@ -567,11 +566,6 @@ function SokMerTid({ sesongId }: { sesongId: string }) {
           .filter(s => s.klubb_id || s.status === 'utilgjengelig')
           .map(s => formatTime(s.fra_kl))
       )
-      // Finn slot-id for ledige tider (hvis slot eksisterer)
-      const slotIdMap = new Map<string, string>()
-      dagSlots.filter(s => !s.klubb_id && s.status !== 'utilgjengelig')
-        .forEach(s => slotIdMap.set(formatTime(s.fra_kl), s.id))
-
       const ledigeTider = TIME_ROWS.filter(t => !opptattTider.has(t)).sort()
 
       // Grupper sammenhengende
@@ -579,14 +573,12 @@ function SokMerTid({ sesongId }: { sesongId: string }) {
       for (const t of ledigeTider) {
         const mins = parseInt(t.split(':')[0]) * 60 + parseInt(t.split(':')[1]) + 30
         const til = `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`
-        const slotId = slotIdMap.get(t)
 
         if (currentPeriod && currentPeriod.til === t) {
           currentPeriod.til = til
-          if (slotId) currentPeriod.slot_ids.push(slotId)
         } else {
           if (currentPeriod) allePerioder.push(currentPeriod)
-          currentPeriod = { hal_id: halId, hal_navn: halNavn, dag, fra: t, til, slot_ids: slotId ? [slotId] : [] }
+          currentPeriod = { hal_id: halId, hal_navn: halNavn, dag, fra: t, til }
         }
       }
       if (currentPeriod) allePerioder.push(currentPeriod)
@@ -617,28 +609,42 @@ function SokMerTid({ sesongId }: { sesongId: string }) {
     setFeil(null)
   }
 
-  // Samle alle slot_ids fra valgte perioder
-  const valgteSlotIds = allePerioder
-    .filter(p => valgtePerioder.has(periodeKey(p)))
-    .flatMap(p => p.slot_ids)
+  const valgtePeriodeList = allePerioder.filter(p => valgtePerioder.has(periodeKey(p)))
 
-  const valgteTimer = allePerioder
-    .filter(p => valgtePerioder.has(periodeKey(p)))
-    .reduce((sum, p) => {
-      const fra = parseInt(p.fra.split(':')[0]) * 60 + parseInt(p.fra.split(':')[1])
-      const til = parseInt(p.til.split(':')[0]) * 60 + parseInt(p.til.split(':')[1])
-      return sum + (til - fra) / 60
-    }, 0)
+  const valgteTimer = valgtePeriodeList.reduce((sum, p) => {
+    const fra = parseInt(p.fra.split(':')[0]) * 60 + parseInt(p.fra.split(':')[1])
+    const til = parseInt(p.til.split(':')[0]) * 60 + parseInt(p.til.split(':')[1])
+    return sum + (til - fra) / 60
+  }, 0)
+
+  // Generer 30-min blokker fra en periode
+  function periodeToBlokker(p: LedigPeriode) {
+    const blokker: { hal_id: string; ukedag: string; fra_kl: string; til_kl: string }[] = []
+    const [fH, fM] = p.fra.split(':').map(Number)
+    const [tH, tM] = p.til.split(':').map(Number)
+    let cur = fH * 60 + fM
+    const end = tH * 60 + tM
+    while (cur + 30 <= end) {
+      const h1 = String(Math.floor(cur / 60)).padStart(2, '0')
+      const m1 = String(cur % 60).padStart(2, '0')
+      const h2 = String(Math.floor((cur + 30) / 60)).padStart(2, '0')
+      const m2 = String((cur + 30) % 60).padStart(2, '0')
+      blokker.push({ hal_id: p.hal_id, ukedag: p.dag, fra_kl: `${h1}:${m1}`, til_kl: `${h2}:${m2}` })
+      cur += 30
+    }
+    return blokker
+  }
 
   async function sendSoknad() {
-    if (valgteSlotIds.length === 0) return
+    if (valgtePeriodeList.length === 0) return
     setSending(true)
     setFeil(null)
-    const results = await Promise.all(valgteSlotIds.map(slotId =>
+    const blokker = valgtePeriodeList.flatMap(periodeToBlokker)
+    const results = await Promise.all(blokker.map(b =>
       fetch('/api/soknader', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tidslot_id: slotId, gruppe: form.gruppe, begrunnelse: form.begrunnelse }),
+        body: JSON.stringify({ hal_id: b.hal_id, ukedag: b.ukedag, fra_kl: b.fra_kl, til_kl: b.til_kl, gruppe: form.gruppe, begrunnelse: form.begrunnelse }),
       })
     ))
     const ok = results.every(r => r.ok)
@@ -677,18 +683,14 @@ function SokMerTid({ sesongId }: { sesongId: string }) {
                       {dagPerioder.map(p => {
                         const key = periodeKey(p)
                         const isSelected = valgtePerioder.has(key)
-                        const hasSlots = p.slot_ids.length > 0
                         return (
                           <button
                             key={key}
-                            onClick={() => hasSlots && togglePeriode(p)}
-                            disabled={!hasSlots}
+                            onClick={() => togglePeriode(p)}
                             className={`rounded-lg px-2.5 py-1 text-xs font-semibold tabular-nums transition-colors ${
                               isSelected
                                 ? 'bg-blue-600 text-white ring-1 ring-blue-700'
-                                : hasSlots
-                                  ? 'bg-green-100 text-green-800 ring-1 ring-green-300 hover:bg-green-200'
-                                  : 'bg-gray-100 text-gray-500 ring-1 ring-gray-200 cursor-not-allowed'
+                                : 'bg-green-100 text-green-800 ring-1 ring-green-300 hover:bg-green-200'
                             }`}>
                             {p.fra}–{p.til}
                           </button>
