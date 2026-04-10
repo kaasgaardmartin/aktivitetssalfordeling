@@ -10,6 +10,7 @@ import VentelisteTab from './VentelisteTab'
 import KlubberTab from './KlubberTab'
 import AuditTab from './AuditTab'
 import KapasitetTab from './KapasitetTab'
+import { exportHallerExcel } from './exportExcel'
 
 // Leaflet depends on window/document, so load client-side only
 const HallerKart = dynamic(() => import('./HallerKart'), { ssr: false, loading: () => <p className="p-6 text-xs text-gray-600">Laster kart...</p> })
@@ -575,6 +576,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
           <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-900 ring-1 ring-blue-300">Admin</span>
         </div>
         <div className="flex items-center gap-2 md:gap-3">
+          <button onClick={() => exportHallerExcel(hallerState, slots)} className="btn text-xs hidden sm:inline-flex">Eksport Excel</button>
           <button onClick={() => setShowNySesong(true)} className="btn text-xs hidden sm:inline-flex">+ Ny sesong</button>
           <button onClick={() => setShowNyHall(true)} className="btn text-xs hidden sm:inline-flex">+ Ny hall</button>
           {aktivSesong && (
