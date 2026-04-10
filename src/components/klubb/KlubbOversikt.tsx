@@ -534,9 +534,18 @@ function SokMerTid({ sesongId }: { sesongId: string }) {
 
   async function loadSlots() {
     setLoading(true)
-    const res = await fetch(`/api/tidslots?sesong_id=${sesongId}`)
-    const data: GridSlot[] = await res.json()
-    setSlots(data)
+    // Hent alle slots i sider for å omgå Supabase 1000-rads-grensen
+    const pageSize = 1000
+    let all: GridSlot[] = []
+    let page = 0
+    while (true) {
+      const res = await fetch(`/api/tidslots?sesong_id=${sesongId}&offset=${page * pageSize}&limit=${pageSize}`)
+      const data: GridSlot[] = await res.json()
+      all = all.concat(data)
+      if (data.length < pageSize) break
+      page++
+    }
+    setSlots(all)
     setLoaded(true)
     setLoading(false)
   }

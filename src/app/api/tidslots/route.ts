@@ -55,6 +55,10 @@ export async function GET(request: NextRequest) {
   if (klubbId) query = query.eq('klubb_id', klubbId)
   if (ledig === 'true') query = query.is('klubb_id', null)
 
+  const offset = parseInt(searchParams.get('offset') ?? '0')
+  const limit = parseInt(searchParams.get('limit') ?? '1000')
+  query = query.range(offset, offset + limit - 1)
+
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
