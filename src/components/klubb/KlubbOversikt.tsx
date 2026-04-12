@@ -649,20 +649,28 @@ function SokMerTid({ sesongId }: { sesongId: string }) {
     setSending(true)
     setFeil(null)
     const blokker = valgtePeriodeList.flatMap(periodeToBlokker)
-    const results = await Promise.all(blokker.map(b =>
-      fetch('/api/soknader', {
+    // Send sekvensielt for å unngå race conditions ved auto-opprettelse av slots
+    let allOk = true
+    let firstError: string | null = null
+    for (const b of blokker) {
+      const res = await fetch('/api/soknader', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ hal_id: b.hal_id, ukedag: b.ukedag, fra_kl: b.fra_kl, til_kl: b.til_kl, gruppe: form.gruppe, begrunnelse: form.begrunnelse }),
       })
-    ))
-    const ok = results.every(r => r.ok)
-    if (ok) {
+      if (!res.ok) {
+        allOk = false
+        if (!firstError) {
+          const err = await res.json().catch(() => null)
+          firstError = err?.error ?? 'Noe gikk galt'
+        }
+      }
+    }
+    if (allOk) {
       setSent(true)
       setValgtePerioder(new Set())
     } else {
-      const firstError = await results.find(r => !r.ok)?.json().catch(() => null)
-      setFeil(firstError?.error ?? 'Noe gikk galt')
+      setFeil(firstError ?? 'Noe gikk galt')
     }
     setSending(false)
   }

@@ -62,6 +62,7 @@ export interface Database {
           fra_kl: string
           til_kl: string
           klubb_id: string | null
+          idrett: string | null
           sesong_id: string | null
           status: 'ledig' | 'utilgjengelig'
           opprettet_at: string
