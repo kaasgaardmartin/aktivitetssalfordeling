@@ -39,7 +39,7 @@ export function exportHallerExcel(haller: Hall[], slots: Slot[]) {
 
   for (const hall of haller) {
     const halSlots = slots.filter(s => s.hal_id === hall.id)
-    if (halSlots.length === 0 && !haller.length) continue
+    if (halSlots.length === 0) continue
 
     // Build grid: rows = TIME_ROWS, cols = ukedager
     const header = ['Tid', ...UKEDAG_ORDER.map(d => UKEDAG_LABEL[d])]

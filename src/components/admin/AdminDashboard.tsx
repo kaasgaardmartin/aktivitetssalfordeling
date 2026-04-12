@@ -97,6 +97,9 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
         if (status === 'godkjent' && approved && s.slot_id === approved.slot_id && s.id !== id) return { ...s, status: 'avslatt' }
         return s
       }).filter(s => s.status === 'venter'))
+    } else {
+      const detail = await res.json().catch(() => ({}))
+      alert(`Kunne ikke ${status === 'godkjent' ? 'godkjenne' : 'avslå'} søknad: ${detail.error ?? res.statusText}`)
     }
   }
 
@@ -124,6 +127,12 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sesong_id: aktivSesong.id }),
     })
+    if (!res.ok) {
+      const detail = await res.json().catch(() => ({}))
+      setSendResult(`Feil: ${detail.error ?? res.statusText}`)
+      setSending(false)
+      return
+    }
     const data = await res.json()
     setSendResult(`Sendt til ${data.sent} klubber`)
     setSending(false)
