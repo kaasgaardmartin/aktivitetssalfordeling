@@ -93,7 +93,7 @@ export default function KlubbOversikt({
   svar: Svar[]
   regler: ReglerInfo
 }) {
-  const [activeTab, setActiveTab] = useState<'tider' | 'sok' | 'profil' | 'regler'>('tider')
+  const [activeTab, setActiveTab] = useState<'tider' | 'sok' | 'soknader' | 'profil' | 'regler'>('tider')
   // savedSvar = det som ligger i databasen (fra initialSvar)
   const [savedSvar, setSavedSvar] = useState<Record<string, Svar | { handling: string }>>(
     Object.fromEntries(initialSvar.map(s => [s.tidslot_id, s]))
@@ -234,9 +234,49 @@ export default function KlubbOversikt({
         <span className="text-xs text-gray-600 shrink-0 hidden sm:inline">{klubb.idrett}</span>
       </div>
 
+      {/* Frist-banner */}
+      {dagerIgjen <= 7 && dagerIgjen > 0 && (
+        <div className={`px-4 py-2.5 text-center text-sm font-medium ${dagerIgjen <= 3 ? 'bg-red-600 text-white' : 'bg-amber-400 text-amber-950'}`}>
+          ⏰ {dagerIgjen === 1 ? 'Siste dag' : `${dagerIgjen} dager igjen`} til fristen for å bekrefte treningstider ({frist.toLocaleDateString('nb-NO', { day: 'numeric', month: 'long' })})
+        </div>
+      )}
+      {dagerIgjen <= 0 && (
+        <div className="px-4 py-2.5 text-center text-sm font-medium bg-gray-700 text-white">
+          Fristen er utløpt. Kontakt idrettssekretariatet ved spørsmål.
+        </div>
+      )}
+
+      {/* Stepper */}
+      <div className="bg-white border-b border-gray-200 px-4 md:px-5 py-3">
+        <div className="mx-auto max-w-2xl flex items-center gap-2 text-xs">
+          {[
+            { step: 1, label: 'Gjennomgå tider', tab: 'tider' as const },
+            { step: 2, label: 'Søk mer tid', tab: 'sok' as const },
+            { step: 3, label: 'Bekreft og lagre', tab: 'tider' as const },
+          ].map(({ step, label, tab }, i) => {
+            const isComplete = step === 1 ? (allebekreftet || pendingCount > 0) : step === 3 ? allebekreftet : false
+            const isCurrent = step === 1 ? (activeTab === 'tider' && !allebekreftet) : step === 2 ? activeTab === 'sok' : (activeTab === 'tider' && (allebekreftet || pendingCount > 0))
+            return (
+              <div key={step} className="flex items-center gap-2 flex-1 min-w-0">
+                {i > 0 && <div className={`h-px flex-1 ${isComplete || isCurrent ? 'bg-gray-900' : 'bg-gray-200'}`} />}
+                <button
+                  onClick={() => { if (step === 3) { setActiveTab('tider'); setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), 100) } else setActiveTab(tab) }}
+                  className={`flex items-center gap-1.5 shrink-0 transition-colors ${isCurrent ? 'text-gray-900 font-semibold' : isComplete ? 'text-green-700' : 'text-gray-400'}`}
+                >
+                  <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${isComplete ? 'bg-green-600 text-white' : isCurrent ? 'bg-gray-900 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                    {isComplete ? '✓' : step}
+                  </span>
+                  <span className="hidden sm:inline">{label}</span>
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
       {/* Nav tabs */}
       <div className="flex border-b border-gray-200 bg-white px-4 md:px-5 overflow-x-auto">
-        {(['tider', 'sok', 'profil', 'regler'] as const).map(tab => (
+        {(['tider', 'sok', 'soknader', 'profil', 'regler'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -246,7 +286,7 @@ export default function KlubbOversikt({
                 : 'border-transparent text-gray-600 hover:text-gray-700'
             }`}
           >
-            {tab === 'tider' ? 'Mine tider' : tab === 'sok' ? 'Søk mer tid' : tab === 'profil' ? 'Profil' : 'Regler og info'}
+            {{ tider: 'Mine tider', sok: 'Søk mer tid', soknader: 'Mine søknader', profil: 'Profil', regler: 'Regler og info' }[tab]}
           </button>
         ))}
       </div>
@@ -258,15 +298,8 @@ export default function KlubbOversikt({
           <>
             {/* Banner */}
             <div className="card p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-base font-semibold text-gray-900">{sesong.navn}</p>
-                  <p className="text-sm text-gray-600 mt-0.5">Gjennomgå tidene dine — marker det du ønsker å endre eller si opp, og lagre nederst.</p>
-                </div>
-                <span className={`badge whitespace-nowrap ${dagerIgjen < 5 ? 'bg-red-100 text-red-900 ring-1 ring-red-300' : 'bg-amber-100 text-amber-900 ring-1 ring-amber-300'}`}>
-                  Frist: {frist.toLocaleDateString('nb-NO', { day: 'numeric', month: 'long' })}
-                </span>
-              </div>
+              <p className="text-base font-semibold text-gray-900">{sesong.navn}</p>
+              <p className="text-sm text-gray-600 mt-0.5">Gjennomgå tidene dine — marker det du ønsker å endre eller si opp, og lagre nederst.</p>
             </div>
 
             {/* Stats */}
@@ -420,6 +453,11 @@ export default function KlubbOversikt({
           <SokMerTid sesongId={sesong.id} />
         )}
 
+        {/* ── MINE SØKNADER ── */}
+        {activeTab === 'soknader' && (
+          <MineSoknader />
+        )}
+
         {/* ── PROFIL ── */}
         {activeTab === 'profil' && (
           <KlubbProfil klubbNavn={klubb.navn} />
@@ -524,39 +562,35 @@ interface LedigPeriode {
 
 function SokMerTid({ sesongId }: { sesongId: string }) {
   const [slots, setSlots] = useState<GridSlot[]>([])
-  const [loading, setLoading] = useState(false)
-  const [loaded, setLoaded] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [valgtePerioder, setValgtePerioder] = useState<Set<string>>(new Set())
   const [form, setForm] = useState({ gruppe: 'barn', begrunnelse: '' })
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [feil, setFeil] = useState<string | null>(null)
 
-  async function loadSlots() {
-    setLoading(true)
-    // Hent alle slots i sider for å omgå Supabase 1000-rads-grensen
-    const pageSize = 1000
-    let all: GridSlot[] = []
-    let page = 0
-    while (true) {
-      const res = await fetch(`/api/tidslots?sesong_id=${sesongId}&offset=${page * pageSize}&limit=${pageSize}`)
-      const data: GridSlot[] = await res.json()
-      all = all.concat(data)
-      if (data.length < pageSize) break
-      page++
+  useEffect(() => {
+    async function loadSlots() {
+      const pageSize = 1000
+      let all: GridSlot[] = []
+      let page = 0
+      while (true) {
+        const res = await fetch(`/api/tidslots?sesong_id=${sesongId}&offset=${page * pageSize}&limit=${pageSize}`)
+        const data: GridSlot[] = await res.json()
+        all = all.concat(data)
+        if (data.length < pageSize) break
+        page++
+      }
+      setSlots(all)
+      setLoading(false)
     }
-    setSlots(all)
-    setLoaded(true)
-    setLoading(false)
-  }
+    loadSlots()
+  }, [sesongId])
 
-  if (!loaded) {
+  if (loading) {
     return (
-      <div className="card p-6 text-center space-y-3">
-        <p className="text-sm text-gray-600">Se hvilke tider som er ledige og send søknad om ekstra treningstid.</p>
-        <button onClick={loadSlots} disabled={loading} className="btn-primary">
-          {loading ? 'Laster…' : 'Vis ledig tid'}
-        </button>
+      <div className="card p-6 text-center">
+        <p className="text-sm text-gray-600">Laster ledig tid…</p>
       </div>
     )
   }
@@ -767,6 +801,126 @@ function SokMerTid({ sesongId }: { sesongId: string }) {
 
 // Liten flertallshjelper: pl('er', 1) → '', pl('er', 2) → 'er'
 function pl(suffix: string, n: number) { return n === 1 ? '' : suffix }
+
+// ── Mine søknader ──
+interface SoknadInfo {
+  id: string
+  status: 'venter' | 'godkjent' | 'avslatt'
+  gruppe: string
+  begrunnelse: string | null
+  opprettet_at: string
+  behandlet_at: string | null
+  tidslots: {
+    id: string
+    ukedag: string
+    fra_kl: string
+    til_kl: string
+    haller: { id: string; navn: string } | null
+  } | null
+}
+
+function MineSoknader() {
+  const [soknader, setSoknader] = useState<SoknadInfo[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/klubb/soknader')
+      .then(r => r.ok ? r.json() : [])
+      .then(d => { setSoknader(d); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [])
+
+  if (loading) return <div className="card p-6 text-center text-sm text-gray-600">Laster søknader…</div>
+
+  if (soknader.length === 0) {
+    return (
+      <div className="card p-8 text-center space-y-2">
+        <p className="text-sm text-gray-600">Du har ikke sendt noen søknader ennå.</p>
+        <p className="text-xs text-gray-400">Gå til «Søk mer tid» for å finne ledig tid.</p>
+      </div>
+    )
+  }
+
+  const statusConfig = {
+    venter: { label: 'Venter', bg: 'bg-amber-100 text-amber-900 ring-1 ring-amber-300', icon: '⏳' },
+    godkjent: { label: 'Godkjent', bg: 'bg-green-100 text-green-900 ring-1 ring-green-300', icon: '✓' },
+    avslatt: { label: 'Avslått', bg: 'bg-red-100 text-red-900 ring-1 ring-red-300', icon: '✗' },
+  }
+
+  // Grupper etter status
+  const venter = soknader.filter(s => s.status === 'venter')
+  const behandlet = soknader.filter(s => s.status !== 'venter')
+
+  return (
+    <div className="space-y-4">
+      {/* Sammendrag */}
+      <div className="grid grid-cols-3 gap-2.5">
+        {[
+          { val: soknader.length, lbl: 'Totalt', color: '' },
+          { val: venter.length, lbl: 'Venter', color: 'text-amber-600' },
+          { val: soknader.filter(s => s.status === 'godkjent').length, lbl: 'Godkjent', color: 'text-green-600' },
+        ].map(s => (
+          <div key={s.lbl} className="card px-4 py-3">
+            <p className={`text-2xl font-semibold tabular-nums ${s.color || 'text-gray-900'}`}>{s.val}</p>
+            <p className="text-xs text-gray-600 mt-0.5">{s.lbl}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Ventende søknader */}
+      {venter.length > 0 && (
+        <div className="card overflow-hidden">
+          <div className="px-4 py-2.5 bg-amber-50 border-b border-amber-200">
+            <p className="text-sm font-semibold text-amber-900">Venter på svar ({venter.length})</p>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {venter.map(s => <SoknadRad key={s.id} soknad={s} config={statusConfig} />)}
+          </div>
+        </div>
+      )}
+
+      {/* Behandlede søknader */}
+      {behandlet.length > 0 && (
+        <div className="card overflow-hidden">
+          <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-200">
+            <p className="text-sm font-semibold text-gray-700">Behandlede søknader ({behandlet.length})</p>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {behandlet.map(s => <SoknadRad key={s.id} soknad={s} config={statusConfig} />)}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SoknadRad({ soknad, config }: { soknad: SoknadInfo; config: Record<string, { label: string; bg: string; icon: string }> }) {
+  const slot = soknad.tidslots
+  const c = config[soknad.status] ?? config.venter
+  return (
+    <div className="px-4 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-gray-900">
+            {slot?.haller?.navn ?? 'Ukjent hall'}
+          </p>
+          <p className="text-xs text-gray-600 mt-0.5">
+            {slot ? `${formatUkedag(slot.ukedag)} ${formatTime(slot.fra_kl)}–${formatTime(slot.til_kl)}` : 'Tidspunkt ukjent'}
+          </p>
+          {soknad.begrunnelse && (
+            <p className="text-xs text-gray-400 mt-1 line-clamp-1">{soknad.begrunnelse}</p>
+          )}
+        </div>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <span className={`badge text-[11px] ${c.bg}`}>{c.icon} {c.label}</span>
+          <span className="text-[10px] text-gray-400">
+            {new Date(soknad.opprettet_at).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short' })}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // ── Klubbprofil-komponent ──
 interface KlubbProfilData {
