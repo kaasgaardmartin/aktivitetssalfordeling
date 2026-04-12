@@ -57,7 +57,12 @@ const klubbUpdateSchema = z.object({
   idrett: z.string().optional(),
   epost: z.string().email().optional(),
   medlemstall: z.number().int().min(0).optional(),
-  andel_barn: z.number().min(0).max(100).optional(),
+  andel_barn: z.number().min(0).max(1).optional(),
+  ant_0_5: z.number().int().min(0).optional(),
+  ant_6_12: z.number().int().min(0).optional(),
+  ant_13_19: z.number().int().min(0).optional(),
+  ant_20_25: z.number().int().min(0).optional(),
+  ant_26_pluss: z.number().int().min(0).optional(),
 })
 
 // PATCH /api/admin/klubber — update club (incl. NIF data manually)

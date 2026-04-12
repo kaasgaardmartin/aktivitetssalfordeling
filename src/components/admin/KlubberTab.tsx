@@ -10,10 +10,14 @@ interface Props {
   aktivSesong: Sesong | null
 }
 
-export default function KlubberTab({ klubber, slots, aktivSesong }: Props) {
+export default function KlubberTab({ klubber: initialKlubber, slots, aktivSesong }: Props) {
+  const [klubber, setKlubber] = useState(initialKlubber)
   const [search, setSearch] = useState('')
   const [genererer, setGenererer] = useState<string | null>(null)
   const [testLink, setTestLink] = useState<{ klubb: string; url: string } | null>(null)
+  const [editKlubb, setEditKlubb] = useState<Klubb | null>(null)
+  const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
 
   const uten_epost = klubber.filter(k => !k.epost).length
 
@@ -68,6 +72,41 @@ export default function KlubberTab({ klubber, slots, aktivSesong }: Props) {
     await navigator.clipboard.writeText(testLink.url)
   }
 
+  async function saveKlubb() {
+    if (!editKlubb) return
+    setEditSaving(true)
+    setEditError(null)
+    const total = editKlubb.ant_0_5 + editKlubb.ant_6_12 + editKlubb.ant_13_19 + editKlubb.ant_20_25 + editKlubb.ant_26_pluss
+    const andel_barn = total > 0 ? Math.round(((editKlubb.ant_0_5 + editKlubb.ant_6_12 + editKlubb.ant_13_19) / total) * 100) / 100 : null
+    try {
+      const res = await fetch('/api/admin/klubber', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editKlubb.id,
+          medlemstall: total || editKlubb.medlemstall,
+          andel_barn,
+          ant_0_5: editKlubb.ant_0_5,
+          ant_6_12: editKlubb.ant_6_12,
+          ant_13_19: editKlubb.ant_13_19,
+          ant_20_25: editKlubb.ant_20_25,
+          ant_26_pluss: editKlubb.ant_26_pluss,
+        }),
+      })
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}))
+        throw new Error(detail.error ? JSON.stringify(detail.error) : res.statusText)
+      }
+      const updated = await res.json()
+      setKlubber(prev => prev.map(k => k.id === updated.id ? { ...k, ...updated } : k))
+      setEditKlubb(null)
+    } catch (e: any) {
+      setEditError(e.message || 'Noe gikk galt')
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-5 space-y-4">
       <div className="flex items-center justify-between gap-3">
@@ -103,7 +142,7 @@ export default function KlubberTab({ klubber, slots, aktivSesong }: Props) {
               {filtered.map(k => {
                 const timerPerUke = (slots.filter(s => s.klubb_id === k.id).length * 0.5)
                 return (
-                  <tr key={k.id} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
+                  <tr key={k.id} className="border-b border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => { setEditKlubb({ ...k }); setEditError(null) }}>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2.5">
                         <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[10px] font-semibold ${idrettColor(k.idrett)}`}>
@@ -148,6 +187,52 @@ export default function KlubberTab({ klubber, slots, aktivSesong }: Props) {
               {uten_epost > 0 && <span className="text-amber-800"> · {uten_epost} uten e-post</span>}
             </span>
             <span className="text-[10px] text-gray-600">{(slots.filter(s => s.klubb_id).length * 0.5).toFixed(0)}t tildelt totalt</span>
+          </div>
+        </div>
+      )}
+
+      {/* Rediger klubb modal */}
+      {editKlubb && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30 p-4" onClick={() => setEditKlubb(null)}>
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <p className="font-semibold text-gray-900">Rediger {editKlubb.navn}</p>
+              <button onClick={() => setEditKlubb(null)} className="text-gray-600 text-xl leading-none">&times;</button>
+            </div>
+            <p className="text-xs text-gray-500">Oppdater medlemstall per aldersgruppe (Samrap-tall). Totalt og andel barn beregnes automatisk.</p>
+            <div className="grid grid-cols-5 gap-2">
+              {([
+                { key: 'ant_0_5', label: '0–5 år' },
+                { key: 'ant_6_12', label: '6–12 år' },
+                { key: 'ant_13_19', label: '13–19 år' },
+                { key: 'ant_20_25', label: '20–25 år' },
+                { key: 'ant_26_pluss', label: '26+ år' },
+              ] as const).map(f => (
+                <div key={f.key}>
+                  <label className="label text-[10px] mb-1">{f.label}</label>
+                  <input
+                    type="number"
+                    min={0}
+                    className="input text-xs"
+                    value={editKlubb[f.key] ?? 0}
+                    onChange={e => setEditKlubb(k => k ? { ...k, [f.key]: e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)) } : k)}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-4 text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-2">
+              <span>Totalt: <strong>{editKlubb.ant_0_5 + editKlubb.ant_6_12 + editKlubb.ant_13_19 + editKlubb.ant_20_25 + editKlubb.ant_26_pluss}</strong></span>
+              <span>Barn (0–19): <strong>{editKlubb.ant_0_5 + editKlubb.ant_6_12 + editKlubb.ant_13_19}</strong></span>
+              {(() => {
+                const t = editKlubb.ant_0_5 + editKlubb.ant_6_12 + editKlubb.ant_13_19 + editKlubb.ant_20_25 + editKlubb.ant_26_pluss
+                return t > 0 ? <span>Andel barn: <strong>{Math.round(((editKlubb.ant_0_5 + editKlubb.ant_6_12 + editKlubb.ant_13_19) / t) * 100)}%</strong></span> : null
+              })()}
+            </div>
+            {editError && <p className="rounded-lg bg-red-100 ring-1 ring-red-300 px-3 py-2 text-xs text-red-900">{editError}</p>}
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setEditKlubb(null)} className="btn text-xs">Avbryt</button>
+              <button onClick={saveKlubb} disabled={editSaving} className="btn-primary text-xs">{editSaving ? 'Lagrer…' : 'Lagre'}</button>
+            </div>
           </div>
         </div>
       )}

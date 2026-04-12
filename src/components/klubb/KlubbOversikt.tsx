@@ -932,6 +932,11 @@ interface KlubbProfilData {
   telefon: string | null
   medlemstall: number | null
   andel_barn: number | null
+  ant_0_5: number
+  ant_6_12: number
+  ant_13_19: number
+  ant_20_25: number
+  ant_26_pluss: number
 }
 
 function KlubbProfil({ klubbNavn }: { klubbNavn: string }) {
@@ -963,8 +968,16 @@ function KlubbProfil({ klubbNavn }: { klubbNavn: string }) {
           kontaktperson: data.kontaktperson || null,
           epost: data.epost,
           telefon: data.telefon || null,
-          medlemstall: data.medlemstall ?? null,
-          andel_barn: data.andel_barn ?? null,
+          medlemstall: (data.ant_0_5 + data.ant_6_12 + data.ant_13_19 + data.ant_20_25 + data.ant_26_pluss) || (data.medlemstall ?? null),
+          andel_barn: (() => {
+            const t = data.ant_0_5 + data.ant_6_12 + data.ant_13_19 + data.ant_20_25 + data.ant_26_pluss
+            return t > 0 ? Math.round(((data.ant_0_5 + data.ant_6_12 + data.ant_13_19) / t) * 100) / 100 : data.andel_barn ?? null
+          })(),
+          ant_0_5: data.ant_0_5,
+          ant_6_12: data.ant_6_12,
+          ant_13_19: data.ant_13_19,
+          ant_20_25: data.ant_20_25,
+          ant_26_pluss: data.ant_26_pluss,
         }),
       })
       if (!res.ok) {
@@ -1015,30 +1028,32 @@ function KlubbProfil({ klubbNavn }: { klubbNavn: string }) {
             onChange={e => setData(d => d ? { ...d, telefon: e.target.value } : d)}
           />
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="label mb-1.5">Medlemstall</label>
-            <input
-              type="number"
-              min={0}
-              className="input"
-              value={data.medlemstall ?? ''}
-              onChange={e => setData(d => d ? { ...d, medlemstall: e.target.value === '' ? null : Number(e.target.value) } : d)}
-            />
+        <div>
+          <label className="label mb-1.5">Medlemstall per aldersgruppe</label>
+          <p className="text-[11px] text-gray-500 mb-2">Fyll inn antall aktive utøvere per alderskategori. Totalt og andel barn beregnes automatisk.</p>
+          <div className="grid grid-cols-5 gap-2">
+            {([
+              { key: 'ant_0_5' as const, label: '0–5' },
+              { key: 'ant_6_12' as const, label: '6–12' },
+              { key: 'ant_13_19' as const, label: '13–19' },
+              { key: 'ant_20_25' as const, label: '20–25' },
+              { key: 'ant_26_pluss' as const, label: '26+' },
+            ]).map(f => (
+              <div key={f.key}>
+                <label className="text-[10px] text-gray-500 mb-0.5 block">{f.label}</label>
+                <input
+                  type="number"
+                  min={0}
+                  className="input text-sm"
+                  value={data[f.key] ?? 0}
+                  onChange={e => setData(d => d ? { ...d, [f.key]: e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)) } : d)}
+                />
+              </div>
+            ))}
           </div>
-          <div>
-            <label className="label mb-1.5">Andel barn (%)</label>
-            <input
-              type="number"
-              min={0}
-              max={100}
-              className="input"
-              value={data.andel_barn == null ? '' : Math.round(data.andel_barn * 100)}
-              onChange={e => {
-                const v = e.target.value
-                setData(d => d ? { ...d, andel_barn: v === '' ? null : Math.max(0, Math.min(100, Number(v))) / 100 } : d)
-              }}
-            />
+          <div className="flex items-center gap-4 text-xs text-gray-600 mt-2 bg-gray-50 rounded-lg px-3 py-2">
+            <span>Totalt: <strong>{data.ant_0_5 + data.ant_6_12 + data.ant_13_19 + data.ant_20_25 + data.ant_26_pluss}</strong></span>
+            <span>Barn (0–19): <strong>{data.ant_0_5 + data.ant_6_12 + data.ant_13_19}</strong></span>
           </div>
         </div>
       </div>

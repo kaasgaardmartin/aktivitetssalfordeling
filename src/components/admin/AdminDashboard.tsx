@@ -10,6 +10,7 @@ import VentelisteTab from './VentelisteTab'
 import KlubberTab from './KlubberTab'
 import AuditTab from './AuditTab'
 import KapasitetTab from './KapasitetTab'
+import StatistikkTab from './StatistikkTab'
 import { exportHallerExcel } from './exportExcel'
 
 // Leaflet depends on window/document, so load client-side only
@@ -27,7 +28,7 @@ interface DashboardProps {
 }
 
 export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: initialSlots, soknader: initialSoknader, venteliste, klubber, endringer: initialEndringer }: DashboardProps) {
-  const [activeTab, setActiveTab] = useState<'haller' | 'kapasitet' | 'soknader' | 'endringer' | 'venteliste' | 'klubber' | 'kart' | 'logg'>('haller')
+  const [activeTab, setActiveTab] = useState<'haller' | 'kapasitet' | 'statistikk' | 'soknader' | 'endringer' | 'venteliste' | 'klubber' | 'kart' | 'logg'>('haller')
   const [selectedHalId, setSelectedHalId] = useState<string | null>(haller[0]?.id ?? null)
   const [soknader, setSoknader] = useState(initialSoknader)
   const [slots, setSlots] = useState(initialSlots)
@@ -602,6 +603,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
         {([
           { id: 'haller', label: 'Halloversikt' },
           { id: 'kapasitet', label: 'Kapasitet' },
+          { id: 'statistikk', label: 'Statistikk' },
           { id: 'soknader', label: `Søknader${ubesvarteSok ? ` (${ubesvarteSok})` : ''}` },
           { id: 'endringer', label: `Endringer${ubehandledeEndringer ? ` (${ubehandledeEndringer})` : ''}` },
           { id: 'venteliste', label: 'Venteliste' },
@@ -817,6 +819,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
 
       {/* ── TAB COMPONENTS ── */}
       {activeTab === 'kapasitet' && <KapasitetTab haller={hallerState} slots={slots} />}
+      {activeTab === 'statistikk' && <StatistikkTab klubber={klubber} slots={slots} />}
       {activeTab === 'soknader' && <SoknaderTab soknader={soknader.filter(s => s.status === 'venter')} onHandleSoknad={handleSoknad} />}
       {activeTab === 'endringer' && <EndringerTab endringer={endringer} onHandleEndring={handleEndring} />}
       {activeTab === 'venteliste' && <VentelisteTab venteliste={venteliste} />}
