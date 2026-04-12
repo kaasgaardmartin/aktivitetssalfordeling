@@ -36,6 +36,11 @@ export interface Database {
           nif_org_id: string | null
           medlemstall: number | null
           andel_barn: number | null
+          ant_0_5: number
+          ant_6_12: number
+          ant_13_19: number
+          ant_20_25: number
+          ant_26_pluss: number
           aktiv: boolean
           opprettet_at: string
         }
