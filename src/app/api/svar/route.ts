@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { verifyAdmin } from '@/lib/admin-auth'
 import { logAudit } from '@/lib/audit'
 import { sendEmail, emailLayout, formatUkedag, formatTimeShort } from '@/lib/email'
+import { assertSesongUlast } from '@/lib/sesong-lock'
 
 const svarSchema = z.object({
   tidslot_id: z.string().uuid(),
@@ -30,6 +31,9 @@ async function getSession() {
 export async function POST(request: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Ikke innlogget' }, { status: 401 })
+
+  const locked = await assertSesongUlast(session.sesong_id)
+  if (locked) return locked
 
   const body = await request.json()
   const parsed = svarSchema.safeParse(body)
@@ -60,6 +64,9 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Ikke innlogget' }, { status: 401 })
+
+  const locked = await assertSesongUlast(session.sesong_id)
+  if (locked) return locked
 
   const supabase = createAdminClient()
 
@@ -144,6 +151,9 @@ export async function PATCH(request: NextRequest) {
   if (svarErr || !svarRader || svarRader.length === 0) {
     return NextResponse.json({ error: 'Fant ikke svar' }, { status: 404 })
   }
+
+  const sesongLockResp = await assertSesongUlast(svarRader[0].sesong_id)
+  if (sesongLockResp) return sesongLockResp
 
   // Hent første tidslot for visning i e-post/audit
   const tidslotIdsForInfo = svarRader.map(s => s.tidslot_id)

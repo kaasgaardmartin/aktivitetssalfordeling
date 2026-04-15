@@ -11,6 +11,7 @@ import KlubberTab from './KlubberTab'
 import AuditTab from './AuditTab'
 import KapasitetTab from './KapasitetTab'
 import StatistikkTab from './StatistikkTab'
+import RegistreringerTab from './RegistreringerTab'
 import { exportHallerExcel } from './exportExcel'
 
 // Leaflet depends on window/document, so load client-side only
@@ -28,7 +29,7 @@ interface DashboardProps {
 }
 
 export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: initialSlots, soknader: initialSoknader, venteliste, klubber, endringer: initialEndringer }: DashboardProps) {
-  const [activeTab, setActiveTab] = useState<'haller' | 'kapasitet' | 'statistikk' | 'soknader' | 'endringer' | 'venteliste' | 'klubber' | 'kart' | 'logg'>('haller')
+  const [activeTab, setActiveTab] = useState<'haller' | 'kapasitet' | 'statistikk' | 'soknader' | 'endringer' | 'venteliste' | 'klubber' | 'registreringer' | 'kart' | 'logg'>('haller')
   const [selectedHalId, setSelectedHalId] = useState<string | null>(haller[0]?.id ?? null)
   const [soknader, setSoknader] = useState(initialSoknader)
   const [slots, setSlots] = useState(initialSlots)
@@ -117,6 +118,26 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
     } else {
       const detail = await res.json().catch(() => ({}))
       alert(`Kunne ikke ${action === 'godkjenn' ? 'godkjenne' : 'avslå'}: ${detail.error ?? res.statusText}`)
+    }
+  }
+
+  async function toggleLaast() {
+    if (!aktivSesong) return
+    const ny = !aktivSesong.laast
+    const bekreftMsg = ny
+      ? `Lås tildelingen for «${aktivSesong.navn}»?\n\nIngen vil kunne endre slots, søknader, svar eller bytter før du åpner igjen.`
+      : `Åpne tildelingen for «${aktivSesong.navn}» igjen?`
+    if (!confirm(bekreftMsg)) return
+    const res = await fetch('/api/sesonger', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: aktivSesong.id, laast: ny }),
+    })
+    if (res.ok) {
+      window.location.reload()
+    } else {
+      const detail = await res.json().catch(() => ({}))
+      alert(`Kunne ikke ${ny ? 'låse' : 'åpne'}: ${detail.error ?? res.statusText}`)
     }
   }
 
@@ -552,6 +573,26 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
     setUploadingBilde(false)
   }
 
+  async function hentBildeFraUrl(url: string) {
+    if (!editHallForm.id) return
+    if (!url || !url.startsWith('http')) { alert('Ugyldig URL'); return }
+    setUploadingBilde(true)
+    const res = await fetch('/api/haller/bilder', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hal_id: editHallForm.id, url }),
+    })
+    if (res.ok) {
+      const { hall } = await res.json()
+      setEditHallBilder(hall.bilder ?? [])
+      setHallerState(prev => prev.map(h => h.id === hall.id ? { ...h, bilder: hall.bilder } : h))
+    } else {
+      const detail = await res.json().catch(() => ({}))
+      alert(`Kunne ikke hente bilde: ${detail.error ?? res.statusText}`)
+    }
+    setUploadingBilde(false)
+  }
+
   async function slettBilde(url: string) {
     if (!editHallForm.id || !confirm('Slette dette bildet?')) return
     const res = await fetch('/api/haller/bilder', {
@@ -584,11 +625,19 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
           <span className="text-sm font-semibold text-gray-900 hidden sm:inline">Aktivitetssaler Oslo</span>
           <span className="h-4 w-px bg-gray-200 hidden sm:inline" />
           <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-900 ring-1 ring-blue-300">Admin</span>
+          {aktivSesong?.laast && (
+            <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-900 ring-1 ring-red-300" title="Tildelingen er låst — ingen kan endre den">🔒 Låst</span>
+          )}
         </div>
         <div className="flex items-center gap-2 md:gap-3">
           <button onClick={() => exportHallerExcel(hallerState, slots)} className="btn text-xs hidden sm:inline-flex">Eksport Excel</button>
           <button onClick={() => setShowNySesong(true)} className="btn text-xs hidden sm:inline-flex">+ Ny sesong</button>
           <button onClick={() => setShowNyHall(true)} className="btn text-xs hidden sm:inline-flex">+ Ny hall</button>
+          {aktivSesong && (
+            <button onClick={toggleLaast} className={`btn text-xs ${aktivSesong.laast ? 'bg-red-50 text-red-900 ring-red-300 hover:bg-red-100' : ''}`} title={aktivSesong.laast ? 'Åpne tildelingen for endringer' : 'Lås tildelingen mot endringer'}>
+              {aktivSesong.laast ? '🔓 Åpne' : '🔒 Lås'}
+            </button>
+          )}
           {aktivSesong && (
             <button onClick={sendLinks} disabled={sending} className="btn text-xs">
               {sending ? 'Sender...' : 'Send lenker'}
@@ -608,6 +657,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
           { id: 'endringer', label: `Endringer${ubehandledeEndringer ? ` (${ubehandledeEndringer})` : ''}` },
           { id: 'venteliste', label: 'Venteliste' },
           { id: 'klubber', label: 'Klubber' },
+          { id: 'registreringer', label: 'Nye søknader' },
           { id: 'kart', label: 'Kart' },
           { id: 'logg', label: 'Logg' },
         ] as const).map(tab => (
@@ -824,6 +874,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
       {activeTab === 'endringer' && <EndringerTab endringer={endringer} onHandleEndring={handleEndring} />}
       {activeTab === 'venteliste' && <VentelisteTab venteliste={venteliste} />}
       {activeTab === 'klubber' && <KlubberTab klubber={klubber} slots={slots} aktivSesong={aktivSesong} />}
+      {activeTab === 'registreringer' && <RegistreringerTab />}
       {activeTab === 'kart' && <HallerKart haller={hallerState} />}
       {activeTab === 'logg' && <AuditTab />}
 
@@ -1116,6 +1167,27 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                 className="btn text-xs w-full">
                 {uploadingBilde ? 'Laster opp...' : '+ Last opp bilde'}
               </button>
+              <div className="flex gap-1.5">
+                <input
+                  type="url"
+                  placeholder="…eller lim inn URL fra nett (https://…)"
+                  className="input text-xs flex-1"
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      const v = (e.target as HTMLInputElement).value.trim()
+                      if (v) { hentBildeFraUrl(v); (e.target as HTMLInputElement).value = '' }
+                    }
+                  }}
+                  id="bilde-url-input"
+                />
+                <button type="button" disabled={uploadingBilde} className="btn text-xs"
+                  onClick={() => {
+                    const inp = document.getElementById('bilde-url-input') as HTMLInputElement | null
+                    const v = inp?.value.trim()
+                    if (v) { hentBildeFraUrl(v); if (inp) inp.value = '' }
+                  }}>Hent</button>
+              </div>
             </div>
             {editHallFeil && <p className="text-sm text-red-600">{editHallFeil}</p>}
             <div className="flex gap-2 justify-between">

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { verifyAdmin } from '@/lib/admin-auth'
 import { logAudit } from '@/lib/audit'
+import { assertSesongUlast, assertSlotUlast } from '@/lib/sesong-lock'
 import { z } from 'zod'
 
 const slotSchema = z.object({
@@ -80,6 +81,12 @@ export async function POST(request: NextRequest) {
     validated.push(parsed.data)
   }
 
+  // Ikke tillat å lage nye slots i en låst sesong
+  for (const v of validated) {
+    const locked = await assertSesongUlast(v.sesong_id)
+    if (locked) return locked
+  }
+
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('tidslots')
@@ -100,6 +107,11 @@ export async function PATCH(request: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
 
   const supabase = createAdminClient()
+
+  // Sjekk at sesongen ikke er låst (basert på første berørte slot)
+  const firstId = 'id' in parsed.data ? parsed.data.id : parsed.data.ids[0]
+  const locked = await assertSlotUlast(firstId)
+  if (locked) return locked
 
   // Form 2: bulk status update
   if ('ids' in parsed.data && 'status' in parsed.data) {
@@ -169,6 +181,9 @@ export async function DELETE(request: NextRequest) {
   if (!id || !z.string().uuid().safeParse(id).success) {
     return NextResponse.json({ error: 'Ugyldig eller manglende id' }, { status: 400 })
   }
+
+  const locked = await assertSlotUlast(id)
+  if (locked) return locked
 
   const supabase = createAdminClient()
   const { error } = await supabase.from('tidslots').delete().eq('id', id)

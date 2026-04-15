@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
+import { assertSesongUlast } from '@/lib/sesong-lock'
 
 async function getSession() {
   const cookieStore = await cookies()
@@ -25,6 +26,9 @@ const bytteSchema = z.object({
 export async function POST(request: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Ikke innlogget' }, { status: 401 })
+
+  const locked = await assertSesongUlast(session.sesong_id)
+  if (locked) return locked
 
   const body = await request.json()
   const parsed = bytteSchema.safeParse(body)
@@ -64,6 +68,9 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Ikke innlogget' }, { status: 401 })
+
+  const locked = await assertSesongUlast(session.sesong_id)
+  if (locked) return locked
 
   const { id, aksepter } = await request.json() as { id: string; aksepter: boolean }
   const supabase = createAdminClient()

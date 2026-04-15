@@ -40,6 +40,7 @@ export interface Sesong {
   navn: string
   frist: string
   status: 'utkast' | 'aktiv' | 'lukket'
+  laast: boolean
   opprettet_av: string | null
   opprettet_at: string
 }

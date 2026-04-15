@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { verifyAdmin } from '@/lib/admin-auth'
 import { logAudit } from '@/lib/audit'
 import { sendEmail, emailLayout, formatUkedag, formatTimeShort } from '@/lib/email'
+import { assertSesongUlast, assertSlotUlast } from '@/lib/sesong-lock'
 
 async function getSession() {
   const cookieStore = await cookies()
@@ -37,6 +38,9 @@ const soknadSchema = z.union([
 export async function POST(request: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Ikke innlogget' }, { status: 401 })
+
+  const locked = await assertSesongUlast(session.sesong_id)
+  if (locked) return locked
 
   const body = await request.json()
   const parsed = soknadSchema.safeParse(body)
@@ -156,6 +160,9 @@ export async function PATCH(request: NextRequest) {
     .single()
 
   if (!soknad) return NextResponse.json({ error: 'Fant ikke søknad' }, { status: 404 })
+
+  const slotLockResp = await assertSlotUlast(soknad.tidslot_id)
+  if (slotLockResp) return slotLockResp
 
   const klubb: any = (soknad as any).klubber
   const slot: any = (soknad as any).tidslots

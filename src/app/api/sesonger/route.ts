@@ -14,6 +14,7 @@ const sesongUpdateSchema = z.object({
   status: z.enum(['utkast', 'aktiv', 'lukket']).optional(),
   frist: z.string().optional(),
   navn: z.string().min(3).optional(),
+  laast: z.boolean().optional(),
 })
 
 // GET /api/sesonger — list all seasons

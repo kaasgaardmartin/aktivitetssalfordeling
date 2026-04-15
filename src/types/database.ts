@@ -53,11 +53,31 @@ export interface Database {
           navn: string
           frist: string
           status: 'utkast' | 'aktiv' | 'lukket'
+          laast: boolean
           opprettet_av: string | null
           opprettet_at: string
         }
-        Insert: Omit<Database['public']['Tables']['sesonger']['Row'], 'id' | 'opprettet_at'>
+        Insert: Omit<Database['public']['Tables']['sesonger']['Row'], 'id' | 'opprettet_at' | 'laast'> & { laast?: boolean }
         Update: Partial<Database['public']['Tables']['sesonger']['Insert']>
+      }
+      klubb_registreringer: {
+        Row: {
+          id: string
+          navn: string
+          idrett: string | null
+          epost: string
+          kontaktperson: string | null
+          telefon: string | null
+          organisasjonsnummer: string | null
+          beskrivelse: string | null
+          status: 'ny' | 'godkjent' | 'avvist'
+          notat_admin: string | null
+          opprettet_at: string
+          behandlet_at: string | null
+          behandlet_av: string | null
+        }
+        Insert: Omit<Database['public']['Tables']['klubb_registreringer']['Row'], 'id' | 'opprettet_at' | 'status' | 'behandlet_at' | 'behandlet_av' | 'notat_admin'> & { status?: 'ny' | 'godkjent' | 'avvist' }
+        Update: Partial<Database['public']['Tables']['klubb_registreringer']['Insert']>
       }
       tidslots: {
         Row: {
