@@ -25,12 +25,20 @@ export default function Home() {
             .
           </p>
         </div>
-        <p className="text-xs text-gray-500">
-          Administrasjon?{' '}
-          <a href="/admin" className="text-gray-700 underline">
-            Admin-innlogging
-          </a>
-        </p>
+        <div className="space-y-1">
+          <p className="text-xs text-gray-500">
+            Vil du se gjeldende fordeling?{' '}
+            <a href="/oversikt" className="text-blue-700 underline">Offentlig oversikt</a>
+          </p>
+          <p className="text-xs text-gray-500">
+            Ny klubb?{' '}
+            <a href="/registrer" className="text-blue-700 underline">Søk om tilgang</a>
+          </p>
+          <p className="text-xs text-gray-500">
+            Administrasjon?{' '}
+            <a href="/admin" className="text-gray-700 underline">Admin-innlogging</a>
+          </p>
+        </div>
       </div>
     </main>
   )
