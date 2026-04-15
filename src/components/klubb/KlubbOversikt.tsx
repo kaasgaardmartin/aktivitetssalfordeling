@@ -93,7 +93,7 @@ export default function KlubbOversikt({
   svar: Svar[]
   regler: ReglerInfo
 }) {
-  const [activeTab, setActiveTab] = useState<'tider' | 'sok' | 'soknader' | 'profil' | 'regler'>('tider')
+  const [activeTab, setActiveTab] = useState<'tider' | 'sok' | 'soknader' | 'profil' | 'regler' | 'hjelp'>('tider')
   // savedSvar = det som ligger i databasen (fra initialSvar)
   const [savedSvar, setSavedSvar] = useState<Record<string, Svar | { handling: string }>>(
     Object.fromEntries(initialSvar.map(s => [s.tidslot_id, s]))
@@ -276,7 +276,7 @@ export default function KlubbOversikt({
 
       {/* Nav tabs */}
       <div className="flex border-b border-gray-200 bg-white px-4 md:px-5 overflow-x-auto">
-        {(['tider', 'sok', 'soknader', 'profil', 'regler'] as const).map(tab => (
+        {(['tider', 'sok', 'soknader', 'profil', 'regler', 'hjelp'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -286,7 +286,7 @@ export default function KlubbOversikt({
                 : 'border-transparent text-gray-600 hover:text-gray-700'
             }`}
           >
-            {{ tider: 'Mine tider', sok: 'Søk mer tid', soknader: 'Mine søknader', profil: 'Profil', regler: 'Regler og info' }[tab]}
+            {{ tider: 'Mine tider', sok: 'Søk mer tid', soknader: 'Mine søknader', profil: 'Profil', regler: 'Regler og info', hjelp: 'Hjelp' }[tab]}
           </button>
         ))}
       </div>
@@ -462,6 +462,9 @@ export default function KlubbOversikt({
         {activeTab === 'profil' && (
           <KlubbProfil klubbNavn={klubb.navn} />
         )}
+
+        {/* ── HJELP ── */}
+        {activeTab === 'hjelp' && <HjelpGuide onNavigate={setActiveTab} />}
 
         {/* ── REGLER ── */}
         {activeTab === 'regler' && (
@@ -801,6 +804,168 @@ function SokMerTid({ sesongId }: { sesongId: string }) {
 
 // Liten flertallshjelper: pl('er', 1) → '', pl('er', 2) → 'er'
 function pl(suffix: string, n: number) { return n === 1 ? '' : suffix }
+
+// ── Hjelp / In-app guide ──
+function HjelpGuide({ onNavigate }: { onNavigate: (tab: 'tider' | 'sok' | 'soknader' | 'profil' | 'regler' | 'hjelp') => void }) {
+  const [openSection, setOpenSection] = useState<string | null>('start')
+
+  const sections: { id: string; emoji: string; title: string; content: React.ReactNode }[] = [
+    {
+      id: 'start',
+      emoji: '👋',
+      title: 'Kom i gang',
+      content: (
+        <div className="space-y-3 text-sm text-gray-700">
+          <p>Velkommen til fordelingen av aktivitetstid for klubben din. Her gjennomgår du tider du har fått tildelt, søker om mer tid, og oppdaterer kontaktinformasjon.</p>
+          <div className="rounded-lg bg-blue-50 ring-1 ring-blue-200 px-3 py-2 text-xs">
+            <strong>Tips:</strong> Bruk steg-indikatoren øverst på siden for å se hvor du er i prosessen.
+          </div>
+          <ol className="list-decimal pl-5 space-y-1.5 text-sm">
+            <li><button onClick={() => onNavigate('tider')} className="text-blue-700 underline">Gå gjennom tildelte tider</button> — bekreft, foreslå endringer, eller si opp</li>
+            <li><button onClick={() => onNavigate('sok')} className="text-blue-700 underline">Søk om mer tid</button> hvis dere trenger ekstra timer</li>
+            <li>Klikk «Bekreft og lagre» nederst på «Mine tider» når dere er ferdig</li>
+          </ol>
+        </div>
+      ),
+    },
+    {
+      id: 'tider',
+      emoji: '📅',
+      title: 'Mine tider — gjennomgang',
+      content: (
+        <div className="space-y-3 text-sm text-gray-700">
+          <p>Under <button onClick={() => onNavigate('tider')} className="text-blue-700 underline">Mine tider</button> ser du alle treningstider klubben er tildelt for kommende sesong, gruppert per hall.</p>
+          <p className="font-semibold mt-2">For hver økt har du tre valg:</p>
+          <div className="space-y-2">
+            <div className="rounded-lg ring-1 ring-gray-200 px-3 py-2">
+              <p className="text-xs"><span className="badge bg-green-100 text-green-900 ring-1 ring-green-300 mr-1.5">Uendret</span> <strong>Bekreft</strong> — du beholder tiden som den er. Skjer automatisk når du klikker «Bekreft og lagre».</p>
+            </div>
+            <div className="rounded-lg ring-1 ring-gray-200 px-3 py-2">
+              <p className="text-xs"><span className="badge bg-blue-100 text-blue-900 ring-1 ring-blue-300 mr-1.5">Endret</span> <strong>Endre</strong> — foreslå nytt tidspunkt eller dag. Admin behandler ønsket.</p>
+            </div>
+            <div className="rounded-lg ring-1 ring-gray-200 px-3 py-2">
+              <p className="text-xs"><span className="badge bg-gray-200 text-gray-900 ring-1 ring-gray-400 mr-1.5">Sagt opp</span> <strong>Si opp</strong> — du gir fra dere tiden. Den blir ledig for andre.</p>
+            </div>
+          </div>
+          <div className="rounded-lg bg-amber-50 ring-1 ring-amber-200 px-3 py-2 text-xs">
+            <strong>Viktig:</strong> Endringer lagres ikke før du klikker den store knappen «Bekreft og lagre» nederst. Ulagrede endringer vises med gul bakgrunn.
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'sok',
+      emoji: '➕',
+      title: 'Søk mer tid',
+      content: (
+        <div className="space-y-3 text-sm text-gray-700">
+          <p>Under <button onClick={() => onNavigate('sok')} className="text-blue-700 underline">Søk mer tid</button> ser du all ledig tid i alle haller, gruppert per dag.</p>
+          <ol className="list-decimal pl-5 space-y-1.5">
+            <li>Klikk på de grønne tidsperiodene dere ønsker (de blir blå)</li>
+            <li>Velg om søknaden gjelder barn, voksne eller begge</li>
+            <li>Skriv en kort begrunnelse (minst 10 tegn)</li>
+            <li>Klikk «Send søknad»</li>
+          </ol>
+          <div className="rounded-lg bg-blue-50 ring-1 ring-blue-200 px-3 py-2 text-xs">
+            Dere kan velge flere perioder samtidig. De sendes som separate søknader admin kan godkjenne eller avslå hver for seg.
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'soknader',
+      emoji: '📋',
+      title: 'Mine søknader',
+      content: (
+        <div className="space-y-3 text-sm text-gray-700">
+          <p>Under <button onClick={() => onNavigate('soknader')} className="text-blue-700 underline">Mine søknader</button> ser du status på alt dere har søkt om.</p>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2"><span className="badge bg-amber-100 text-amber-900 ring-1 ring-amber-300">⏳ Venter</span> <span className="text-xs">Søknaden er sendt og venter på behandling</span></div>
+            <div className="flex items-center gap-2"><span className="badge bg-green-100 text-green-900 ring-1 ring-green-300">✓ Godkjent</span> <span className="text-xs">Tiden er tildelt klubben</span></div>
+            <div className="flex items-center gap-2"><span className="badge bg-red-100 text-red-900 ring-1 ring-red-300">✗ Avslått</span> <span className="text-xs">Søknaden ble ikke innvilget</span></div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'profil',
+      emoji: '👤',
+      title: 'Profil og medlemstall',
+      content: (
+        <div className="space-y-3 text-sm text-gray-700">
+          <p>Under <button onClick={() => onNavigate('profil')} className="text-blue-700 underline">Profil</button> oppdaterer dere kontaktinformasjon og medlemstall.</p>
+          <p className="font-semibold mt-2">Dette er viktig fordi:</p>
+          <ul className="list-disc pl-5 space-y-1 text-sm">
+            <li><strong>E-post</strong> brukes til varsler og innloggingslenker</li>
+            <li><strong>Medlemstall per aldersgruppe</strong> brukes som grunnlag i fordelingsvedtak — særlig prinsippet om barneidrett-prioritering</li>
+            <li>Tallene skal stemme med <strong>Samrap</strong> for siste år</li>
+          </ul>
+          <div className="rounded-lg bg-amber-50 ring-1 ring-amber-200 px-3 py-2 text-xs">
+            Totalt medlemstall og andel barn beregnes automatisk ut fra alderskategoriene.
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'frist',
+      emoji: '⏰',
+      title: 'Frist og varslinger',
+      content: (
+        <div className="space-y-3 text-sm text-gray-700">
+          <p>Hver sesong har en frist for å bekrefte tider. Dere ser alltid antall dager igjen øverst på siden:</p>
+          <ul className="list-disc pl-5 space-y-1 text-sm">
+            <li><span className="text-amber-700 font-semibold">≤ 7 dager</span>: gult varsel</li>
+            <li><span className="text-red-700 font-semibold">≤ 3 dager</span>: rødt varsel</li>
+          </ul>
+          <p>Hvis fristen utløper uten respons, behandles tildelte tider som bekreftet automatisk. Søknader om endring eller mer tid må sendes før fristen.</p>
+        </div>
+      ),
+    },
+    {
+      id: 'kontakt',
+      emoji: '✉️',
+      title: 'Kontakt og hjelp',
+      content: (
+        <div className="space-y-3 text-sm text-gray-700">
+          <p>Får dere problemer eller har spørsmål om vedtak, kontakt idrettssekretariatet via e-post.</p>
+          <p>Tekniske problemer (lenker som ikke virker, feilmeldinger): kontakt admin direkte.</p>
+        </div>
+      ),
+    },
+  ]
+
+  return (
+    <div className="space-y-3">
+      <div className="card p-5">
+        <p className="text-base font-semibold text-gray-900">Hvordan bruke systemet</p>
+        <p className="text-sm text-gray-600 mt-0.5">Klikk på et tema for å lese mer.</p>
+      </div>
+
+      {sections.map(s => {
+        const isOpen = openSection === s.id
+        return (
+          <div key={s.id} className="card overflow-hidden">
+            <button
+              onClick={() => setOpenSection(isOpen ? null : s.id)}
+              className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-xl">{s.emoji}</span>
+                <span className="font-semibold text-gray-900 text-sm">{s.title}</span>
+              </div>
+              <span className={`text-gray-400 text-xs transition-transform ${isOpen ? 'rotate-180' : ''}`}>▼</span>
+            </button>
+            {isOpen && (
+              <div className="px-4 pb-4 pt-1 border-t border-gray-100">
+                {s.content}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 // ── Mine søknader ──
 interface SoknadInfo {

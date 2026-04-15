@@ -74,6 +74,66 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ url: publicUrl, hall: data }, { status: 201 })
 }
 
+// PUT /api/haller/bilder — hent bilde fra en URL (web) og last opp til Storage
+// Body: { hal_id, url } — admin only
+export async function PUT(request: NextRequest) {
+  const { error: authError } = await verifyAdmin()
+  if (authError) return authError
+
+  const { hal_id, url } = (await request.json()) as { hal_id?: string; url?: string }
+  if (!hal_id || !url) return NextResponse.json({ error: 'Mangler hal_id eller url' }, { status: 400 })
+
+  let parsed: URL
+  try { parsed = new URL(url) } catch { return NextResponse.json({ error: 'Ugyldig URL' }, { status: 400 }) }
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    return NextResponse.json({ error: 'Bare http(s) er tillatt' }, { status: 400 })
+  }
+
+  // Hent bildet
+  let resp: Response
+  try {
+    resp = await fetch(parsed.toString(), { headers: { 'User-Agent': 'AktivitetssalerOslo/1.0' }, redirect: 'follow' })
+  } catch (e: any) {
+    return NextResponse.json({ error: `Kunne ikke hente bildet: ${e.message}` }, { status: 502 })
+  }
+  if (!resp.ok) return NextResponse.json({ error: `Kilde svarte ${resp.status}` }, { status: 502 })
+
+  const contentType = (resp.headers.get('content-type') ?? '').split(';')[0].trim()
+  if (!ALLOWED_TYPES.includes(contentType)) {
+    return NextResponse.json({ error: `Ugyldig bildetype: ${contentType || 'ukjent'}` }, { status: 400 })
+  }
+
+  const buf = Buffer.from(await resp.arrayBuffer())
+  if (buf.byteLength > MAX_SIZE) {
+    return NextResponse.json({ error: `Bildet er for stort (${(buf.byteLength / 1024 / 1024).toFixed(1)} MB). Maks 5 MB.` }, { status: 400 })
+  }
+
+  const supabase = createAdminClient()
+  const ext = contentType === 'image/jpeg' ? 'jpg'
+    : contentType === 'image/png' ? 'png'
+    : contentType === 'image/webp' ? 'webp' : 'gif'
+  const fileName = `${hal_id}/${Date.now()}.${ext}`
+
+  const { error: upErr } = await supabase.storage
+    .from('hall-bilder')
+    .upload(fileName, buf, { contentType, upsert: false })
+  if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 })
+
+  const { data: { publicUrl } } = supabase.storage.from('hall-bilder').getPublicUrl(fileName)
+
+  const { data: hall } = await supabase.from('haller').select('bilder').eq('id', hal_id).single()
+  const currentBilder = hall?.bilder ?? []
+  const { data, error } = await supabase
+    .from('haller')
+    .update({ bilder: [...currentBilder, publicUrl] })
+    .eq('id', hal_id)
+    .select()
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ url: publicUrl, hall: data, kilde: parsed.toString() }, { status: 201 })
+}
+
 // DELETE /api/haller/bilder — remove image from a hall (admin only)
 export async function DELETE(request: NextRequest) {
   const { error: authError } = await verifyAdmin()
