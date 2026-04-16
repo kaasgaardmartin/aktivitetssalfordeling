@@ -24,6 +24,7 @@ export default async function Page() {
           .eq('sesong_id', sesong.id)
           .order('ukedag')
           .order('fra_kl')
+          .range(0, 9999) // overstyr Supabase sin default-grense på 1000 rader
       : Promise.resolve({ data: [] as any[], error: null }),
   ])
 

@@ -2,24 +2,45 @@
 
 import { useState } from 'react'
 
+// Idretter som allerede er representert i fordelingen.
+// «Annet» åpner et fritekstfelt.
+const IDRETT_VALG = [
+  'Boksing',
+  'Bryting',
+  'Fekting',
+  'Judo',
+  'Kampsport',
+  'Kickboksing',
+  'Paraidrett',
+  'Dans',
+  'Bordtennis',
+] as const
+
 export default function Page() {
   const [form, setForm] = useState({
     navn: '', idrett: '', epost: '', kontaktperson: '', telefon: '',
     organisasjonsnummer: '', beskrivelse: '',
   })
+  const [idrettValg, setIdrettValg] = useState<string>('')
+  const [idrettAnnet, setIdrettAnnet] = useState<string>('')
   const [sending, setSending] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
+    const idrett = idrettValg === 'Annet' ? idrettAnnet.trim() : idrettValg
+    if (!idrett) {
+      setError('Velg idrett')
+      return
+    }
     setSending(true)
     setError(null)
     try {
       const res = await fetch('/api/klubb/registrer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, idrett }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -67,7 +88,25 @@ export default function Page() {
           </div>
           <div>
             <label className="label">Idrett *</label>
-            <input required placeholder="F.eks. Bryting, Boksing, Judo" className="input" value={form.idrett} onChange={e => setForm({ ...form, idrett: e.target.value })} />
+            <select
+              required
+              className="input"
+              value={idrettValg}
+              onChange={e => setIdrettValg(e.target.value)}
+            >
+              <option value="">— Velg idrett —</option>
+              {IDRETT_VALG.map(i => <option key={i} value={i}>{i}</option>)}
+              <option value="Annet">Annet (skriv inn)</option>
+            </select>
+            {idrettValg === 'Annet' && (
+              <input
+                required
+                placeholder="Skriv inn idrett"
+                className="input mt-2"
+                value={idrettAnnet}
+                onChange={e => setIdrettAnnet(e.target.value)}
+              />
+            )}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
