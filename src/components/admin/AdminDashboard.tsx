@@ -12,6 +12,7 @@ import AuditTab from './AuditTab'
 import KapasitetTab from './KapasitetTab'
 import StatistikkTab from './StatistikkTab'
 import RegistreringerTab from './RegistreringerTab'
+import EmailTestModal from './EmailTestModal'
 import { exportHallerExcel } from './exportExcel'
 
 // Leaflet depends on window/document, so load client-side only
@@ -44,6 +45,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
   const [nySesongLaster, setNySesongLaster] = useState(false)
   const [nySesongFeil, setNySesongFeil] = useState('')
   const [showNyHall, setShowNyHall] = useState(false)
+  const [showEmailTest, setShowEmailTest] = useState(false)
   const [nyHallForm, setNyHallForm] = useState({ navn: '', underlag: '', merknader: '', stengedager: '', adresse: '' })
   const [nyHallLaster, setNyHallLaster] = useState(false)
   const [nyHallFeil, setNyHallFeil] = useState('')
@@ -643,6 +645,9 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
               {sending ? 'Sender...' : 'Send lenker'}
             </button>
           )}
+          <button onClick={() => setShowEmailTest(true)} className="btn text-xs hidden sm:inline-flex" title="Send testmail for å verifisere e-postoppsettet">
+            ✉️ Testmail
+          </button>
           {sendResult && <span className="text-xs text-green-600">{sendResult}</span>}
         </div>
       </div>
@@ -1024,6 +1029,9 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
           </form>
         </div>
       )}
+
+      {/* ── E-POST TEST MODAL ── */}
+      {showEmailTest && <EmailTestModal onClose={() => setShowEmailTest(false)} />}
 
       {/* ── NY SESONG MODAL ── */}
       {showNySesong && (

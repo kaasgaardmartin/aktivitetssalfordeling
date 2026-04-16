@@ -68,7 +68,8 @@ export async function POST(request: NextRequest) {
         <p>Idrettssekretariatet vil gjennomgå søknaden og kontakte deg så snart som mulig.</p>
       `,
     }),
-  }).catch(() => null)
+  })
+  // sendEmail logger feil selv, men søknaden skal lagres selv om mailen feiler
 
   return NextResponse.json({ ok: true, id: data.id }, { status: 201 })
 }
@@ -154,7 +155,8 @@ export async function PATCH(request: NextRequest) {
            ${parsed.data.notat ? `<p style="background:#fef2f2;padding:10px 14px;border-radius:8px"><em>${parsed.data.notat}</em></p>` : ''}
            <p>Ta kontakt med idrettssekretariatet hvis du har spørsmål.</p>`,
     }),
-  }).catch(() => null)
+  })
+  // sendEmail logger feil selv, men søknaden skal lagres selv om mailen feiler
 
   return NextResponse.json({ ok: true, klubb_id: nyKlubbId })
 }
