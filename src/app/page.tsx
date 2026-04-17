@@ -19,9 +19,10 @@ export default function Home() {
             Fordeling av aktivitetssaler i Oslo
           </h1>
           <p className="text-lg text-white/75 max-w-2xl leading-relaxed">
-            Oslo idrettskrets tildeler tid i kommunale aktivitetssaler til kampidrettene —
-            boksing, bryting, fekting, judo, kickboksing og tilgrensende idretter.
-            Kampidrettsforbundene fordeler deretter tiden videre til klubbene.
+            Oslo idrettskrets tildeler tid i kommunale aktivitetssaler til de seks kampidrettsforbundene:
+            Norges Bokseforbund, Norges Bryteforbund, Norges Fekteforbund, Norges Judoforbund,
+            Norges Kickbokseforbund og Norges Kampsportforbund.
+            Hvert forbund fordeler deretter tiden videre til sine tilknyttede klubber.
           </p>
           <p className="mt-3 text-sm text-white/50">
             Dette nettstedet administreres av Martin Kaasgaard Nielsen på vegne av kampidrettsforbundene.
@@ -65,14 +66,11 @@ export default function Home() {
           <p className="text-sm text-gray-600 mb-5 leading-relaxed">
             Salene som inngår i fordelingen er kommunale aktivitetssaler spredt rundt i Oslo.
             Merk at salene deles med skoler og andre aktivitetstilbud — klubbene har ikke eksklusiv tilgang.
-            Bruk kartet for å se hvilke saler som er tilgjengelige og hvem som bruker dem.
+            I oversikten kan du klikke på en sal og se hvem som bruker den og hvilke tider som er ledige.
           </p>
           <div className="flex flex-wrap gap-3">
             <Link href="/oversikt" className="btn-primary text-sm">
-              Se gjeldende fordeling
-            </Link>
-            <Link href="/oversikt" className="btn text-sm">
-              Kart over saler
+              Se fordeling og ledige tider
             </Link>
           </div>
         </section>
