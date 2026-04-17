@@ -49,25 +49,43 @@ export async function POST(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   if (parsed.data.kopier_fra_sesong_id) {
-    const { data: forrigeSlots, error: slotErr } = await supabase
-      .from('tidslots')
-      .select('hal_id, ukedag, fra_kl, til_kl, klubb_id')
-      .eq('sesong_id', parsed.data.kopier_fra_sesong_id)
+    // Hent alle slots fra forrige sesong (paginert — Supabase har max 1000 rader per kall)
+    let forrigeSlots: any[] = []
+    let from = 0
+    while (true) {
+      const { data, error: slotErr } = await supabase
+        .from('tidslots')
+        .select('hal_id, ukedag, fra_kl, til_kl, klubb_id, idrett, status')
+        .eq('sesong_id', parsed.data.kopier_fra_sesong_id)
+        .range(from, from + 999)
 
-    if (slotErr) return NextResponse.json({ error: slotErr.message }, { status: 500 })
+      if (slotErr) return NextResponse.json({ error: slotErr.message }, { status: 500 })
+      if (!data || data.length === 0) break
+      forrigeSlots = forrigeSlots.concat(data)
+      if (data.length < 1000) break
+      from += 1000
+    }
 
-    if (forrigeSlots && forrigeSlots.length > 0) {
+    if (forrigeSlots.length > 0) {
       const nyeSlots = forrigeSlots.map(s => ({
         hal_id: s.hal_id,
         ukedag: s.ukedag,
         fra_kl: s.fra_kl,
         til_kl: s.til_kl,
         klubb_id: s.klubb_id,
+        idrett: s.idrett,
+        status: s.status,
         sesong_id: sesong.id,
       }))
 
-      const { error: insertErr } = await supabase.from('tidslots').insert(nyeSlots)
-      if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 })
+      // Sett inn i bolker på 200 for å unngå payload-grenser
+      const BATCH = 200
+      for (let i = 0; i < nyeSlots.length; i += BATCH) {
+        const { error: insertErr } = await supabase
+          .from('tidslots')
+          .insert(nyeSlots.slice(i, i + BATCH) as any)
+        if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 })
+      }
     }
   }
 
