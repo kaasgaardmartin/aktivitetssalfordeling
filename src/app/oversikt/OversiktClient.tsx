@@ -106,7 +106,7 @@ export default function OversiktClient({ haller, slots, sesong }: { haller: Hall
                           <td className="px-2 py-1.5 text-[10px] font-mono text-gray-600 sticky left-0 bg-white">{time}</td>
                           {UKEDAG_ORDER.map(dag => {
                             const slot = halSlots.find(s => s.ukedag === dag && fmt(s.fra_kl) === time)
-                            if (!slot) return <td key={dag} className="px-1.5 py-1.5 text-gray-300">·</td>
+                            if (!slot) return <td key={dag} className="px-1.5 py-1.5 bg-green-50 text-green-800 text-[10px]">Ledig</td>
                             if (slot.status === 'utilgjengelig') return <td key={dag} className="px-1.5 py-1.5 bg-gray-200 text-gray-600 text-[10px]">Utilgj.</td>
                             if (slot.klubb_id && slot.klubber) {
                               const idrett = slot.idrett ?? slot.klubber.idrett
