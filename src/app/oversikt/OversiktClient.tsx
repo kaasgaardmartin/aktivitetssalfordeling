@@ -55,8 +55,6 @@ export default function OversiktClient({ haller, slots, sesong }: { haller: Hall
   const fordelingRef = useRef<HTMLDivElement>(null)
 
   const halSlots = useMemo(() => slots.filter(s => s.hal_id === selectedHal), [slots, selectedHal])
-  const totalTimer = useMemo(() => slots.filter(s => s.klubb_id).length * 0.5, [slots])
-  const ledigeTimer = useMemo(() => slots.filter(s => !s.klubb_id && s.status !== 'utilgjengelig').length * 0.5, [slots])
   const valgtHall = haller.find(h => h.id === selectedHal)
 
   function velgHall(id: string) {
@@ -91,14 +89,6 @@ export default function OversiktClient({ haller, slots, sesong }: { haller: Hall
           <div className="card p-6 text-center text-sm text-gray-600">Ingen aktiv sesong — fordelingen er ikke publisert.</div>
         ) : (
           <>
-            {/* Statistikk */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <div className="card px-3 py-2"><p className="text-lg font-semibold">{haller.length}</p><p className="text-[10px] text-gray-600">Saler</p></div>
-              <div className="card px-3 py-2"><p className="text-lg font-semibold">{totalTimer}t</p><p className="text-[10px] text-gray-600">Tildelte timer/uke</p></div>
-              <div className="card px-3 py-2"><p className="text-lg font-semibold">{ledigeTimer}t</p><p className="text-[10px] text-gray-600">Ledige timer/uke</p></div>
-              <div className="card px-3 py-2"><p className="text-lg font-semibold">{new Set(slots.filter(s => s.klubb_id).map(s => s.klubb_id)).size}</p><p className="text-[10px] text-gray-600">Klubber med tid</p></div>
-            </div>
-
             {/* Kart */}
             <div>
               <p className="text-[10px] text-gray-500 mb-2">Klikk på en sal i kartet for å se fordelingen</p>
