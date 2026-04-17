@@ -2,7 +2,6 @@ import { createAdminClient } from '@/lib/supabase'
 import OversiktClient from './OversiktClient'
 
 export const dynamic = 'force-dynamic'
-export const revalidate = 60
 
 export default async function Page() {
   const supabase = createAdminClient()

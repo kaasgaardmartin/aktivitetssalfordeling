@@ -117,6 +117,9 @@ export async function POST(request: NextRequest) {
 
 // GET /api/soknader — admin: all applications with club info
 export async function GET(request: NextRequest) {
+  const { error: authError } = await verifyAdmin()
+  if (authError) return authError
+
   const { searchParams } = new URL(request.url)
   const sesongId = searchParams.get('sesong_id')
   const halId = searchParams.get('hal_id')

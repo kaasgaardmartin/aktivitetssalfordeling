@@ -190,7 +190,7 @@ export default function OversiktClient({ haller, slots, sesong }: { haller: Hall
             </div>
 
             <p className="text-[10px] text-gray-500 text-center pt-2">
-              Dette er en offentlig oversikt. Klubber logger inn på <a href="/" className="underline">forsiden</a>.
+              Dette er en offentlig oversikt. Klubber logger inn via lenken de har fått på e-post.
               Oppdateres automatisk hvert minutt.
             </p>
           </>

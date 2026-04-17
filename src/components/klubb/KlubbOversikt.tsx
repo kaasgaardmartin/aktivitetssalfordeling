@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import type { Database } from '@/types/database'
 import { idrettColor, TIME_ROWS } from '@/components/admin/types'
 
@@ -103,7 +103,6 @@ export default function KlubbOversikt({
   const [allebekreftet, setAllebekreftet] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
   const [changeModal, setChangeModal] = useState<Block | null>(null)
   const [changeForm, setChangeForm] = useState({ ny_ukedag: '', ny_fra_kl: '', ny_til_kl: '', kommentar: '' })
 

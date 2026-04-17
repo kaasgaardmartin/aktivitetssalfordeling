@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
+import { verifyAdmin } from '@/lib/admin-auth'
 
 // GET /api/admin/regler — fetch current rules
 export async function GET() {
@@ -17,6 +18,9 @@ export async function GET() {
 
 // PATCH /api/admin/regler — update rules text
 export async function PATCH(request: NextRequest) {
+  const { error: authError } = await verifyAdmin()
+  if (authError) return authError
+
   const body = await request.json()
   const { id, innhold } = body
 

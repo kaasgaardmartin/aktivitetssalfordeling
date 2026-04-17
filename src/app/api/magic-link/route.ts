@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     .single()
 
   if (error || !link) return NextResponse.redirect(new URL('/feil?msg=ugyldig-token', request.url))
-  if (link.brukt_at && new Date(link.utloper_at) < new Date()) {
+  if (link.brukt_at || new Date(link.utloper_at) < new Date()) {
     return NextResponse.redirect(new URL('/feil?msg=utlopt-token', request.url))
   }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
+import { verifyAdmin } from '@/lib/admin-auth'
 import { z } from 'zod'
 
 const ventelisteSchema = z.object({
@@ -41,6 +42,9 @@ export async function POST(request: NextRequest) {
 
 // PATCH /api/venteliste — admin marks as tildelt/inaktiv
 export async function PATCH(request: NextRequest) {
+  const { error: authError } = await verifyAdmin()
+  if (authError) return authError
+
   const body = await request.json()
   const { id, status } = body as { id: string; status: 'tildelt' | 'inaktiv' }
 
