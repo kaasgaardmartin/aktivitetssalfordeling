@@ -17,7 +17,7 @@ export default async function Page() {
 
   const hallerRes = await supabase
     .from('haller')
-    .select('id, navn, adresse, poststed')
+    .select('id, navn, adresse, postnummer, poststed, lat, lng, kilde_url')
     .eq('aktiv', true)
     .order('navn')
 

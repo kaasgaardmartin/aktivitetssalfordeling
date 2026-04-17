@@ -1,8 +1,23 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import dynamic from 'next/dynamic'
 
-interface Hall { id: string; navn: string; adresse: string | null; poststed: string | null }
+const OversiktKart = dynamic(() => import('./OversiktKart'), {
+  ssr: false,
+  loading: () => <div className="card flex items-center justify-center" style={{height:'480px'}}><p className="text-sm text-gray-500">Laster kart…</p></div>
+})
+
+interface Hall {
+  id: string
+  navn: string
+  adresse: string | null
+  postnummer: string | null
+  poststed: string | null
+  lat: number | null
+  lng: number | null
+  kilde_url: string | null
+}
 interface Slot {
   id: string; hal_id: string; ukedag: string; fra_kl: string; til_kl: string
   klubb_id: string | null; idrett: string | null; status?: 'ledig' | 'utilgjengelig'
@@ -33,6 +48,7 @@ function fmt(t?: string | null) { return t?.slice(0, 5) ?? '' }
 
 export default function OversiktClient({ haller, slots, sesong }: { haller: Hall[]; slots: Slot[]; sesong: Sesong | null }) {
   const [selectedHal, setSelectedHal] = useState<string>(haller[0]?.id ?? '')
+  const [visning, setVisning] = useState<'oversikt' | 'kart'>('oversikt')
 
   const halSlots = useMemo(() => slots.filter(s => s.hal_id === selectedHal), [slots, selectedHal])
   const totalTimer = useMemo(() => slots.filter(s => s.klubb_id).length * 0.5, [slots])
@@ -65,66 +81,93 @@ export default function OversiktClient({ haller, slots, sesong }: { haller: Hall
           <div className="card p-6 text-center text-sm text-gray-600">Ingen aktiv sesong — fordelingen er ikke publisert.</div>
         ) : (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <div className="card px-3 py-2"><p className="text-lg font-semibold">{haller.length}</p><p className="text-[10px] text-gray-600">Saler</p></div>
-              <div className="card px-3 py-2"><p className="text-lg font-semibold">{totalTimer}t</p><p className="text-[10px] text-gray-600">Tildelte timer/uke</p></div>
-              <div className="card px-3 py-2"><p className="text-lg font-semibold">{ledigeTimer}t</p><p className="text-[10px] text-gray-600">Ledige timer/uke</p></div>
-              <div className="card px-3 py-2"><p className="text-lg font-semibold">{new Set(slots.filter(s => s.klubb_id).map(s => s.klubb_id)).size}</p><p className="text-[10px] text-gray-600">Klubber med tid</p></div>
+            {/* Visningsvelger */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setVisning('oversikt')}
+                className={`text-xs px-3 py-1.5 rounded-lg border ${visning === 'oversikt' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+              >
+                Fordeling
+              </button>
+              <button
+                onClick={() => setVisning('kart')}
+                className={`text-xs px-3 py-1.5 rounded-lg border ${visning === 'kart' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+              >
+                Kart
+              </button>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              {haller.map(h => (
-                <button
-                  key={h.id}
-                  onClick={() => setSelectedHal(h.id)}
-                  className={`text-xs px-3 py-1.5 rounded-lg border ${selectedHal === h.id ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
-                >
-                  {h.navn}
-                </button>
-              ))}
-            </div>
+            {visning === 'oversikt' && (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="card px-3 py-2"><p className="text-lg font-semibold">{haller.length}</p><p className="text-[10px] text-gray-600">Saler</p></div>
+                  <div className="card px-3 py-2"><p className="text-lg font-semibold">{totalTimer}t</p><p className="text-[10px] text-gray-600">Tildelte timer/uke</p></div>
+                  <div className="card px-3 py-2"><p className="text-lg font-semibold">{ledigeTimer}t</p><p className="text-[10px] text-gray-600">Ledige timer/uke</p></div>
+                  <div className="card px-3 py-2"><p className="text-lg font-semibold">{new Set(slots.filter(s => s.klubb_id).map(s => s.klubb_id)).size}</p><p className="text-[10px] text-gray-600">Klubber med tid</p></div>
+                </div>
 
-            {valgtHall && (
-              <div className="card overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
-                  <p className="text-sm font-semibold text-gray-900">{valgtHall.navn}</p>
-                  {valgtHall.adresse && <p className="text-[10px] text-gray-600">{valgtHall.adresse}{valgtHall.poststed ? `, ${valgtHall.poststed}` : ''}</p>}
+                <div className="flex flex-wrap gap-2">
+                  {haller.map(h => (
+                    <button
+                      key={h.id}
+                      onClick={() => setSelectedHal(h.id)}
+                      className={`text-xs px-3 py-1.5 rounded-lg border ${selectedHal === h.id ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                    >
+                      {h.navn}
+                    </button>
+                  ))}
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-600 sticky left-0 bg-gray-50 z-10">Tid</th>
-                        {UKEDAG_ORDER.map(d => (
-                          <th key={d} className="px-2 py-2 text-left text-[10px] font-semibold text-gray-600 min-w-[120px]">{UKEDAG_LABEL[d]}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {TIME_ROWS.map(time => (
-                        <tr key={time} className="border-t border-gray-100">
-                          <td className="px-2 py-1.5 text-[10px] font-mono text-gray-600 sticky left-0 bg-white">{time}</td>
-                          {UKEDAG_ORDER.map(dag => {
-                            const slot = halSlots.find(s => s.ukedag === dag && fmt(s.fra_kl) === time)
-                            if (!slot) return <td key={dag} className="px-1.5 py-1.5 bg-green-50 text-green-800 text-[10px]">Ledig</td>
-                            if (slot.status === 'utilgjengelig') return <td key={dag} className="px-1.5 py-1.5 bg-gray-200 text-gray-600 text-[10px]">Utilgj.</td>
-                            if (slot.klubb_id && slot.klubber) {
-                              const idrett = slot.idrett ?? slot.klubber.idrett
-                              return (
-                                <td key={dag} className={`px-1.5 py-1.5 text-[11px] ${idrettColor(idrett)}`}>
-                                  <div className="font-medium truncate">{slot.klubber.navn}</div>
-                                  {idrett && <div className="text-[9px] opacity-75">{idrett}</div>}
-                                </td>
-                              )
-                            }
-                            return <td key={dag} className="px-1.5 py-1.5 bg-green-50 text-green-800 text-[10px]">Ledig</td>
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+
+                {valgtHall && (
+                  <div className="card overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
+                      <p className="text-sm font-semibold text-gray-900">{valgtHall.navn}</p>
+                      {valgtHall.adresse && <p className="text-[10px] text-gray-600">{valgtHall.adresse}{valgtHall.poststed ? `, ${valgtHall.poststed}` : ''}</p>}
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-600 sticky left-0 bg-gray-50 z-10">Tid</th>
+                            {UKEDAG_ORDER.map(d => (
+                              <th key={d} className="px-2 py-2 text-left text-[10px] font-semibold text-gray-600 min-w-[120px]">{UKEDAG_LABEL[d]}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {TIME_ROWS.map(time => (
+                            <tr key={time} className="border-t border-gray-100">
+                              <td className="px-2 py-1.5 text-[10px] font-mono text-gray-600 sticky left-0 bg-white">{time}</td>
+                              {UKEDAG_ORDER.map(dag => {
+                                const slot = halSlots.find(s => s.ukedag === dag && fmt(s.fra_kl) === time)
+                                if (!slot) return <td key={dag} className="px-1.5 py-1.5 bg-green-50 text-green-800 text-[10px]">Ledig</td>
+                                if (slot.status === 'utilgjengelig') return <td key={dag} className="px-1.5 py-1.5 bg-gray-200 text-gray-600 text-[10px]">Utilgj.</td>
+                                if (slot.klubb_id && slot.klubber) {
+                                  const idrett = slot.idrett ?? slot.klubber.idrett
+                                  return (
+                                    <td key={dag} className={`px-1.5 py-1.5 text-[11px] ${idrettColor(idrett)}`}>
+                                      <div className="font-medium truncate">{slot.klubber.navn}</div>
+                                      {idrett && <div className="text-[9px] opacity-75">{idrett}</div>}
+                                    </td>
+                                  )
+                                }
+                                return <td key={dag} className="px-1.5 py-1.5 bg-green-50 text-green-800 text-[10px]">Ledig</td>
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {visning === 'kart' && (
+              <OversiktKart
+                haller={haller}
+                onSelectHal={(id) => { setSelectedHal(id); setVisning('oversikt') }}
+              />
             )}
 
             <p className="text-[10px] text-gray-500 text-center pt-2">
