@@ -115,10 +115,10 @@ export default function Home() {
         <section className="rounded-xl bg-gray-50 ring-1 ring-gray-200 p-6">
           <h2 className="text-base font-semibold text-gray-900 mb-1">Se ledig tid</h2>
           <p className="text-sm text-gray-600 mb-4">
-            I den offentlige oversikten kan du se hvilke tider som er ledige i hver sal.
+            Her ser du hvilke tider som er ledige i hver sal, gruppert per hall og ukedag.
           </p>
-          <Link href="/oversikt" className="btn text-sm">
-            Åpne oversikten
+          <Link href="/ledig" className="btn text-sm">
+            Se ledige tider
           </Link>
         </section>
 
