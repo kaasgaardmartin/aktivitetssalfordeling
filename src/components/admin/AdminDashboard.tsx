@@ -67,6 +67,8 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
   const [bulkIdrett, setBulkIdrett] = useState('')
   const [bulkSaving, setBulkSaving] = useState(false)
   const bildeInputRef = useRef<HTMLInputElement>(null)
+  const [seedingSlots, setSeedingSlots] = useState(false)
+  const [seedResult, setSeedResult] = useState<string | null>(null)
 
   function getIdretter(klubbId: string | null): string[] {
     if (!klubbId) return []
@@ -160,6 +162,41 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
     const data = await res.json()
     setSendResult(`Sendt til ${data.sent} klubber`)
     setSending(false)
+  }
+
+  async function seedAllSlots() {
+    if (!aktivSesong) return
+    if (!confirm(`Dette oppretter alle manglende tidslot-rader for alle haller i «${aktivSesong.navn}».\n\nEksisterende slots røres ikke. Fortsett?`)) return
+    setSeedingSlots(true)
+    setSeedResult(null)
+    try {
+      const res = await fetch('/api/admin/seed-slots', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        setSeedResult(`Feil: ${data.error ?? 'ukjent'}`)
+      } else if (data.created === 0) {
+        setSeedResult('✓ Alle slotter finnes allerede')
+      } else {
+        setSeedResult(`✓ ${data.created} nye slotter opprettet`)
+        // Hent oppdaterte slots (paginert)
+        let allSlots: any[] = []
+        let offset = 0
+        while (true) {
+          const r = await fetch(`/api/tidslots?sesong_id=${aktivSesong.id}&offset=${offset}&limit=1000`)
+          const page = await r.json()
+          if (!Array.isArray(page) || page.length === 0) break
+          allSlots = allSlots.concat(page)
+          if (page.length < 1000) break
+          offset += 1000
+        }
+        setSlots(allSlots)
+      }
+    } catch (e: any) {
+      setSeedResult(`Feil: ${e.message}`)
+    } finally {
+      setSeedingSlots(false)
+      setTimeout(() => setSeedResult(null), 5000)
+    }
   }
 
   async function opprettSesong(e: React.FormEvent) {
@@ -645,6 +682,12 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
               {sending ? 'Sender...' : 'Send lenker'}
             </button>
           )}
+          {aktivSesong && !aktivSesong.laast && (
+            <button onClick={seedAllSlots} disabled={seedingSlots} className="btn text-xs hidden sm:inline-flex" title="Opprett alle manglende tidslot-rader for aktiv sesong">
+              {seedingSlots ? 'Fyller inn…' : '⚡ Fyll slotter'}
+            </button>
+          )}
+          {seedResult && <span className="text-xs text-green-700 hidden sm:inline">{seedResult}</span>}
           <button onClick={() => setShowEmailTest(true)} className="btn text-xs hidden sm:inline-flex" title="Send testmail for å verifisere e-postoppsettet">
             ✉️ Testmail
           </button>
