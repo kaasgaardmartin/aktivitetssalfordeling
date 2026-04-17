@@ -75,6 +75,9 @@ export default function Home() {
             <Link href="/oversikt" className="btn-primary text-sm">
               Se fordeling og ledige tider
             </Link>
+            <Link href="/regler" className="btn text-sm">
+              Regler for tildeling
+            </Link>
           </div>
         </section>
 
@@ -119,6 +122,7 @@ export default function Home() {
         {/* Footer-lenker */}
         <div className="border-t border-gray-100 pt-6 flex flex-wrap gap-x-6 gap-y-1 text-xs text-gray-400">
           <Link href="/oversikt" className="hover:text-gray-700">Offentlig oversikt</Link>
+          <Link href="/regler" className="hover:text-gray-700">Regler for tildeling</Link>
           <Link href="/registrer" className="hover:text-gray-700">Søk om tilgang</Link>
           <a href="/admin" className="hover:text-gray-700">Administrasjon</a>
         </div>
