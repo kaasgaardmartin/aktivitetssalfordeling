@@ -2,7 +2,7 @@ import { createAdminClient } from '@/lib/supabase'
 import LedigClient from './LedigClient'
 
 export const dynamic = 'force-dynamic'
-export const revalidate = 60
+export const metadata = { title: 'Ledige tider — Aktivitetssaler Oslo' }
 
 export default async function LedigPage() {
   const supabase = createAdminClient()

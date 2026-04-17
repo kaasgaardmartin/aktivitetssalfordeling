@@ -116,9 +116,9 @@ export async function PATCH(request: NextRequest) {
   // Form 2: bulk status update
   if ('ids' in parsed.data && 'status' in parsed.data) {
     const { ids, status } = parsed.data
-    // Når man markerer som utilgjengelig, frigjør klubb samtidig
+    // Frigjør klubb ved ledig/utilgjengelig
     const update: any = { status }
-    if (status === 'utilgjengelig') { update.klubb_id = null; update.idrett = null }
+    if (status === 'utilgjengelig' || status === 'ledig') { update.klubb_id = null; update.idrett = null }
 
     const { error } = await supabase
       .from('tidslots')

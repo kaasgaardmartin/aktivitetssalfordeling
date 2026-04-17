@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase'
 import OversiktClient from './OversiktClient'
 
 export const dynamic = 'force-dynamic'
+export const metadata = { title: 'Kart og fordeling — Aktivitetssaler Oslo' }
 
 export default async function Page() {
   const supabase = createAdminClient()

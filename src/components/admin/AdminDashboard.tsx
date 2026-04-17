@@ -374,22 +374,16 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
     if (selectedSlotIds.size === 0) return
     setBulkSaving(true)
     const ids = [...selectedSlotIds]
-    // Set status to ledig and remove club
-    await fetch('/api/tidslots', {
+    // Ett kall: setter status=ledig og nullstiller klubb_id atomisk
+    const res = await fetch('/api/tidslots', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids, status: 'ledig' }),
     })
-    // Remove club assignment from each
-    await Promise.all(ids.map(id =>
-      fetch('/api/tidslots', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, klubb_id: null }),
-      })
-    ))
-    setSlots(prev => prev.map(s => selectedSlotIds.has(s.id) ? { ...s, klubb_id: null, status: 'ledig', klubber: null } : s))
-    setSelectedSlotIds(new Set())
+    if (res.ok) {
+      setSlots(prev => prev.map(s => selectedSlotIds.has(s.id) ? { ...s, klubb_id: null, idrett: null, status: 'ledig', klubber: null } : s))
+      setSelectedSlotIds(new Set())
+    }
     setBulkSaving(false)
   }
 

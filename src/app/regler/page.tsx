@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase'
 import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
+export const metadata = { title: 'Regler for tildeling — Aktivitetssaler Oslo' }
 
 export default async function ReglerPage() {
   const supabase = createAdminClient()
@@ -17,7 +18,13 @@ export default async function ReglerPage() {
       <header className="border-b border-gray-200 bg-white">
         <div className="mx-auto max-w-3xl px-4 py-4 flex items-center justify-between">
           <h1 className="text-lg font-semibold text-gray-900">Regler for tildeling</h1>
-          <Link href="/" className="text-xs text-gray-600 underline">← Forside</Link>
+          <div className="flex items-center gap-3 text-xs text-gray-600">
+            <Link href="/ledig" className="underline">Ledige tider</Link>
+            <span>·</span>
+            <Link href="/oversikt" className="underline">Kart og fordeling</Link>
+            <span>·</span>
+            <Link href="/" className="underline">← Forside</Link>
+          </div>
         </div>
       </header>
 
