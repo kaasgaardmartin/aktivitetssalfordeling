@@ -25,7 +25,10 @@ export default function Home() {
             Hvert forbund fordeler deretter tiden videre til sine tilknyttede klubber.
           </p>
           <p className="mt-3 text-sm text-white/50">
-            Dette nettstedet administreres av Martin Kaasgaard Nielsen på vegne av kampidrettsforbundene.
+            Dette nettstedet administreres av Martin Kaasgaard Nielsen på vegne av kampidrettsforbundene.{' '}
+            <a href="https://www.idrettsforbundet.no/idrettskrets/oslo/idrettsanlegg/aktivitetssal/" target="_blank" rel="noopener noreferrer" className="underline hover:text-white/75">
+              Les mer om aktivitetssalene hos Oslo idrettskrets ↗
+            </a>
           </p>
         </div>
       </div>
