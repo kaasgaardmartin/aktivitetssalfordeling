@@ -86,12 +86,9 @@ export default function Home() {
           <div className="grid sm:grid-cols-2 gap-4 mb-5">
             <div className="rounded-xl bg-blue-50 ring-1 ring-blue-200 p-5">
               <h3 className="font-semibold text-blue-900 mb-1">Eksisterende klubb</h3>
-              <p className="text-sm text-blue-800 leading-relaxed mb-3">
-                Logg inn via lenken du mottok på e-post. Har du ikke fått lenke, ta kontakt med idrettssekretariatet.
+              <p className="text-sm text-blue-800 leading-relaxed">
+                Logg inn via lenken du mottok på e-post. Har du ikke fått lenke, ta kontakt med ditt forbund.
               </p>
-              <a href="mailto:idrettssekretariatet@oslo.kommune.no" className="text-xs text-blue-700 underline">
-                idrettssekretariatet@oslo.kommune.no
-              </a>
             </div>
             <div className="rounded-xl bg-green-50 ring-1 ring-green-200 p-5">
               <h3 className="font-semibold text-green-900 mb-1">Ny klubb</h3>
