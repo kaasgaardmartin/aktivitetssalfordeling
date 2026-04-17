@@ -72,8 +72,11 @@ export default function Home() {
             I oversikten kan du klikke på en sal og se hvem som bruker den og hvilke tider som er ledige.
           </p>
           <div className="flex flex-wrap gap-3">
-            <Link href="/oversikt" className="btn-primary text-sm">
-              Se fordeling og ledige tider
+            <Link href="/ledig" className="btn-primary text-sm">
+              Se ledige tider
+            </Link>
+            <Link href="/oversikt" className="btn text-sm">
+              Kart og full fordeling
             </Link>
             <Link href="/regler" className="btn text-sm">
               Regler for tildeling
@@ -121,7 +124,8 @@ export default function Home() {
 
         {/* Footer-lenker */}
         <div className="border-t border-gray-100 pt-6 flex flex-wrap gap-x-6 gap-y-1 text-xs text-gray-400">
-          <Link href="/oversikt" className="hover:text-gray-700">Offentlig oversikt</Link>
+          <Link href="/ledig" className="hover:text-gray-700">Ledige tider</Link>
+          <Link href="/oversikt" className="hover:text-gray-700">Kart og full fordeling</Link>
           <Link href="/regler" className="hover:text-gray-700">Regler for tildeling</Link>
           <Link href="/registrer" className="hover:text-gray-700">Søk om tilgang</Link>
           <a href="/admin" className="hover:text-gray-700">Administrasjon</a>
