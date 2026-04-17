@@ -198,22 +198,7 @@ export function idrettColor(idrett?: string | null) {
 
 export function formatTime(t: string) { return t?.slice(0, 5) ?? '' }
 
-export function generate30minSlots(fra: string, til: string) {
-  const slots: { fra_kl: string; til_kl: string }[] = []
-  const [fH, fM] = fra.split(':').map(Number)
-  const [tH, tM] = til.split(':').map(Number)
-  let cur = fH * 60 + fM
-  const end = tH * 60 + tM
-  while (cur + 30 <= end) {
-    const h1 = String(Math.floor(cur / 60)).padStart(2, '0')
-    const m1 = String(cur % 60).padStart(2, '0')
-    const h2 = String(Math.floor((cur + 30) / 60)).padStart(2, '0')
-    const m2 = String((cur + 30) % 60).padStart(2, '0')
-    slots.push({ fra_kl: `${h1}:${m1}`, til_kl: `${h2}:${m2}` })
-    cur += 30
-  }
-  return slots
-}
+export { generate30minSlots } from '@/lib/time-utils'
 
 export function exportCSV(filename: string, headers: string[], rows: string[][]) {
   const bom = '\uFEFF'

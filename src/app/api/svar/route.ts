@@ -6,6 +6,7 @@ import { verifyAdmin } from '@/lib/admin-auth'
 import { logAudit } from '@/lib/audit'
 import { sendEmail, emailLayout, formatUkedag, formatTimeShort } from '@/lib/email'
 import { assertSesongUlast } from '@/lib/sesong-lock'
+import { generate30minSlots } from '@/lib/time-utils'
 
 const svarSchema = z.object({
   tidslot_id: z.string().uuid(),
@@ -108,23 +109,6 @@ export async function PUT(request: NextRequest) {
   return NextResponse.json({ ok: true, bekreftet: inserts.length })
 }
 
-// Hjelp: lag 30-min slots fra fra_kl..til_kl
-function generate30minSlots(fra: string, til: string): { fra_kl: string; til_kl: string }[] {
-  const out: { fra_kl: string; til_kl: string }[] = []
-  const [fH, fM] = fra.slice(0, 5).split(':').map(Number)
-  const [tH, tM] = til.slice(0, 5).split(':').map(Number)
-  let cur = fH * 60 + fM
-  const end = tH * 60 + tM
-  while (cur + 30 <= end) {
-    const h1 = String(Math.floor(cur / 60)).padStart(2, '0')
-    const m1 = String(cur % 60).padStart(2, '0')
-    const h2 = String(Math.floor((cur + 30) / 60)).padStart(2, '0')
-    const m2 = String((cur + 30) % 60).padStart(2, '0')
-    out.push({ fra_kl: `${h1}:${m1}:00`, til_kl: `${h2}:${m2}:00` })
-    cur += 30
-  }
-  return out
-}
 
 // PATCH /api/svar — admin behandler endringsforespørsler (godkjenn/avslå)
 // Aksepterer { ids: string[], action } for å håndtere hele blokker.

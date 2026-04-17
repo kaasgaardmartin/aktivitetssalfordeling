@@ -1,5 +1,7 @@
 import Link from 'next/link'
 
+export const metadata = { title: 'Innloggingsfeil — Aktivitetssaler Oslo' }
+
 export default async function FeilPage({ searchParams }: { searchParams: Promise<{ msg?: string }> }) {
   const params = await searchParams
   const meldinger: Record<string, string> = {
