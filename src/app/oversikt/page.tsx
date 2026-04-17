@@ -15,21 +15,35 @@ export default async function Page() {
 
   const sesong = aktivSesong ?? null
 
-  const [hallerRes, slotsRes] = await Promise.all([
-    supabase.from('haller').select('id, navn, adresse, poststed').eq('aktiv', true).order('navn'),
-    sesong
-      ? supabase
-          .from('tidslots')
-          .select('id, hal_id, ukedag, fra_kl, til_kl, klubb_id, idrett, status, klubber(id, navn, idrett)')
-          .eq('sesong_id', sesong.id)
-          .order('ukedag')
-          .order('fra_kl')
-          .range(0, 9999) // overstyr Supabase sin default-grense på 1000 rader
-      : Promise.resolve({ data: [] as any[], error: null }),
-  ])
+  const hallerRes = await supabase
+    .from('haller')
+    .select('id, navn, adresse, poststed')
+    .eq('aktiv', true)
+    .order('navn')
+
+  // Supabase har en absolutt max-rows-grense (default 1000) som ikke kan overstyres med .range().
+  // Vi henter derfor i sider à 1000 til alle rader er hentet.
+  let allSlots: any[] = []
+  if (sesong) {
+    const PAGE = 1000
+    let from = 0
+    while (true) {
+      const { data, error } = await supabase
+        .from('tidslots')
+        .select('id, hal_id, ukedag, fra_kl, til_kl, klubb_id, idrett, status, klubber(id, navn, idrett)')
+        .eq('sesong_id', sesong.id)
+        .order('ukedag')
+        .order('fra_kl')
+        .range(from, from + PAGE - 1)
+      if (error || !data || data.length === 0) break
+      allSlots = allSlots.concat(data)
+      if (data.length < PAGE) break
+      from += PAGE
+    }
+  }
 
   const haller = hallerRes.data ?? []
-  const slots = (slotsRes.data ?? []) as any[]
+  const slots = allSlots
 
   return <OversiktClient haller={haller} slots={slots} sesong={sesong} />
 }
