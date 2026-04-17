@@ -798,6 +798,11 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
                                     <span className="truncate text-[10px] font-semibold">{slot.klubber?.navn}</span>
                                   </div>
                                 )}
+                                {!isSelected && !slot?.klubb_id && !isUtilgj && (
+                                  <div className="flex h-full items-center justify-center">
+                                    <span className="text-[9px] text-green-700">Ledig</span>
+                                  </div>
+                                )}
                                 {!isSelected && isUtilgj && (
                                   <div className="flex h-full items-center justify-center">
                                     <span className="text-[9px] font-bold uppercase tracking-tight text-gray-700">×</span>
