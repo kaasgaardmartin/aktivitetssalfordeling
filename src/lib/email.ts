@@ -78,9 +78,7 @@ export async function sendEmail({ to, subject, html, replyTo }: SendEmailArgs): 
 export function emailLayout({ title, body }: { title: string; body: string }) {
   return `
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#1a1a1a">
-      <div style="border-bottom:2px solid #1a1a1a;padding-bottom:16px;margin-bottom:24px">
-        <p style="font-size:12px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:#666;margin:0">Aktivitetssaler Oslo</p>
-        <h1 style="font-size:22px;font-weight:700;margin:6px 0 0 0;color:#1a1a1a">${title}</h1>
+      <div style="border-bottom:1px solid #e5e7eb;padding-bottom:16px;margin-bottom:24px">
       </div>
       <div style="font-size:14px;line-height:1.6;color:#1a1a1a">${body}</div>
       <hr style="border:none;border-top:1px solid #e5e7eb;margin:28px 0 14px 0" />

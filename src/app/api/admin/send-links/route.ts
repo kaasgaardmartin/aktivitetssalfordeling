@@ -72,14 +72,14 @@ export async function POST(request: NextRequest) {
       to: klubb.epost,
       subject: `${sesongNavn} — gjennomgå og bekreft treningstidene dine`,
       html: emailLayout({
-        title: 'Gjennomgå treningstidene dine',
+        title: '',
         body: `
           <p>Hei ${klubb.navn},</p>
 
           <p>Forslag til treningstider for <strong>${sesongNavn}</strong> er nå klare. Vi ber dere gå gjennom de foreslåtte tidene og bekrefte, melde endringer eller si opp tider dere ikke lenger har behov for.</p>
 
           ${fristFormatert ? `
-          <div style="background:#fef3c7;border-left:4px solid #d97706;padding:12px 16px;margin:20px 0;border-radius:0 6px 6px 0">
+          <div style="border-left:4px solid #d97706;padding:12px 16px;margin:20px 0">
             <p style="margin:0;font-weight:600;color:#92400e">Frist: ${fristFormatert}</p>
             <p style="margin:4px 0 0 0;font-size:13px;color:#92400e">Tider som ikke bekreftes innen fristen regnes som godkjent uendret.</p>
           </div>` : ''}
