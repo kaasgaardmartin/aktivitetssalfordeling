@@ -40,6 +40,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
   const [slotModalSaving, setSlotModalSaving] = useState(false)
   const [sending, setSending] = useState(false)
   const [sendResult, setSendResult] = useState<string | null>(null)
+  const [showSendLinker, setShowSendLinker] = useState(false)
   const [showNySesong, setShowNySesong] = useState(false)
   const [nySesongForm, setNySesongForm] = useState({ navn: '', frist: '', kopier_fra_sesong_id: '' })
   const [nySesongLaster, setNySesongLaster] = useState(false)
@@ -143,13 +144,13 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
     }
   }
 
-  async function sendLinks() {
+  async function sendLinks(klubbIds: string[]) {
     if (!aktivSesong) return
     setSending(true)
     const res = await fetch('/api/admin/send-links', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sesong_id: aktivSesong.id }),
+      body: JSON.stringify({ sesong_id: aktivSesong.id, klubb_ids: klubbIds }),
     })
     if (!res.ok) {
       const detail = await res.json().catch(() => ({}))
@@ -636,7 +637,7 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
             </button>
           )}
           {aktivSesong && (
-            <button onClick={sendLinks} disabled={sending} className="btn text-xs">
+            <button onClick={() => setShowSendLinker(true)} disabled={sending} className="btn text-xs">
               {sending ? 'Sender...' : 'Send lenker'}
             </button>
           )}
@@ -1033,6 +1034,18 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
 
       {/* ── E-POST TEST MODAL ── */}
       {showEmailTest && <EmailTestModal onClose={() => setShowEmailTest(false)} />}
+      {showSendLinker && aktivSesong && (
+        <SendLinkerModal
+          klubber={klubber.filter(k => k.aktiv)}
+          sesongNavn={aktivSesong.navn}
+          sending={sending}
+          onClose={() => setShowSendLinker(false)}
+          onSend={async (valgte) => {
+            await sendLinks(valgte)
+            setShowSendLinker(false)
+          }}
+        />
+      )}
 
       {/* ── NY SESONG MODAL ── */}
       {showNySesong && (
@@ -1211,6 +1224,124 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
           </form>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Send lenker modal ──
+function SendLinkerModal({
+  klubber,
+  sesongNavn,
+  sending,
+  onClose,
+  onSend,
+}: {
+  klubber: Klubb[]
+  sesongNavn: string
+  sending: boolean
+  onClose: () => void
+  onSend: (klubbIds: string[]) => Promise<void>
+}) {
+  const [valgte, setValgte] = useState<Set<string>>(new Set(klubber.map(k => k.id)))
+  const [bekreftet, setBekreftet] = useState(false)
+
+  function toggleAll() {
+    if (valgte.size === klubber.length) setValgte(new Set())
+    else setValgte(new Set(klubber.map(k => k.id)))
+  }
+
+  function toggle(id: string) {
+    setValgte(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+    setBekreftet(false)
+  }
+
+  const valgteKlubber = klubber.filter(k => valgte.has(k.id))
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl bg-white flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
+          <div>
+            <p className="font-semibold text-gray-900">Send innloggingslenker</p>
+            <p className="text-xs text-gray-600 mt-0.5">{sesongNavn}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-600 text-xl leading-none">&times;</button>
+        </div>
+
+        {!bekreftet ? (
+          <>
+            {/* Velg klubber */}
+            <div className="px-6 py-3 border-b border-gray-100 shrink-0 flex items-center justify-between">
+              <p className="text-xs text-gray-600"><strong>{valgte.size}</strong> av {klubber.length} klubber valgt</p>
+              <button onClick={toggleAll} className="text-xs text-blue-700 underline">
+                {valgte.size === klubber.length ? 'Fjern alle' : 'Velg alle'}
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1 divide-y divide-gray-100">
+              {klubber.map(k => (
+                <label key={k.id} className="flex items-center gap-3 px-6 py-2.5 hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={valgte.has(k.id)}
+                    onChange={() => toggle(k.id)}
+                    className="h-4 w-4 rounded border-gray-300 text-gray-900"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900 truncate">{k.navn}</p>
+                    <p className="text-xs text-gray-500 truncate">{k.epost ?? '—'}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 shrink-0">
+              <button
+                onClick={() => setBekreftet(true)}
+                disabled={valgte.size === 0}
+                className="btn-primary w-full"
+              >
+                Gå videre ({valgte.size} klubber)
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Bekreftelsesvisning */}
+            <div className="px-6 py-4 shrink-0">
+              <div className="rounded-lg bg-amber-50 ring-1 ring-amber-300 px-4 py-3 text-sm text-amber-900">
+                <p className="font-semibold">Send til {valgteKlubber.length} klubber?</p>
+                <p className="text-xs mt-1">Hver klubb får en personlig innloggingslenke på e-post. Lenken er gyldig i 7 dager.</p>
+              </div>
+            </div>
+            <div className="overflow-y-auto flex-1 px-6 space-y-1">
+              {valgteKlubber.map(k => (
+                <div key={k.id} className="flex items-center gap-2 py-1">
+                  <span className="text-green-600 text-xs">✓</span>
+                  <div className="min-w-0">
+                    <span className="text-sm text-gray-900">{k.navn}</span>
+                    <span className="text-xs text-gray-500 ml-2">{k.epost}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 shrink-0 flex gap-2">
+              <button onClick={() => setBekreftet(false)} className="btn flex-1">Tilbake</button>
+              <button
+                onClick={() => onSend(Array.from(valgte))}
+                disabled={sending}
+                className="btn-primary flex-1"
+              >
+                {sending ? 'Sender...' : `✓ Send til ${valgteKlubber.length} klubber`}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   )
 }

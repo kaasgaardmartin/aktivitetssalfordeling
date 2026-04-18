@@ -9,24 +9,26 @@ export async function POST(request: NextRequest) {
   if (authError) return authError
 
   const body = await request.json()
-  const { sesong_id } = body as { sesong_id: string }
+  const { sesong_id, klubb_ids } = body as { sesong_id: string; klubb_ids?: string[] }
 
   if (!sesong_id) return NextResponse.json({ error: 'Mangler sesong_id' }, { status: 400 })
 
   const supabase = createAdminClient()
 
   // Hent sesongen for å vise navnet i mailen
-  const { data: sesong } = await supabase
+  const { data: sesongRaw } = await supabase
     .from('sesonger')
     .select('navn, frist')
     .eq('id', sesong_id)
     .single()
+  const sesong = sesongRaw as { navn: string; frist: string | null } | null
 
-  // Get all active clubs
-  const { data: klubber, error: klubbErr } = await supabase
-    .from('klubber')
-    .select('id, navn, epost')
-    .eq('aktiv', true)
+  // Hent aktive klubber — enten utvalgte eller alle
+  const baseQuery = supabase.from('klubber').select('id, navn, epost').eq('aktiv', true)
+  const { data: klubberRaw, error: klubbErr } = await (
+    klubb_ids && klubb_ids.length > 0 ? baseQuery.in('id', klubb_ids) : baseQuery
+  )
+  const klubber = (klubberRaw ?? []) as Array<{ id: string; navn: string; epost: string | null }>
 
   if (klubbErr) return NextResponse.json({ error: klubbErr.message }, { status: 500 })
 
@@ -38,17 +40,18 @@ export async function POST(request: NextRequest) {
 
   const results: { klubb: string; ok: boolean; error?: string; dev_url?: string }[] = []
 
-  for (const klubb of klubber ?? []) {
+  for (const klubb of klubber) {
     if (!klubb.epost) {
       results.push({ klubb: klubb.navn, ok: false, error: 'mangler e-post' })
       continue
     }
     // Create magic link token
-    const { data: link, error: linkErr } = await supabase
+    const { data: linkRaw, error: linkErr } = await supabase
       .from('magic_links')
-      .insert({ klubb_id: klubb.id, sesong_id })
+      .insert({ klubb_id: klubb.id, sesong_id } as any)
       .select('token')
       .single()
+    const link = linkRaw as { token: string } | null
 
     if (linkErr || !link) {
       results.push({ klubb: klubb.navn, ok: false, error: linkErr?.message ?? 'kunne ikke opprette magic link' })
