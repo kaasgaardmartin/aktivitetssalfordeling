@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
         body: `
           <p>Hei ${klubb.navn},</p>
 
-          <p>Forslag til treningstider for <strong>${sesongNavn}</strong> er nå klare. Vi ber dere gå gjennom de foreslåtte tidene og bekrefte, melde endringer eller si opp tider dere ikke lenger har behov for.</p>
+          <p>Forslag til treningstider for <strong>${sesongNavn}</strong> er nå klare. Tidene er i utgangspunktet videreført fra forrige sesong, med mindre det har vært særlige grunner til endring. Vi ber dere gå gjennom de foreslåtte tidene og bekrefte, melde endringer eller si opp tider dere ikke lenger har behov for.</p>
 
           ${fristFormatert ? `
           <div style="border-left:4px solid #d97706;padding:12px 16px;margin:20px 0">
