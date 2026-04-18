@@ -70,15 +70,37 @@ export async function POST(request: NextRequest) {
 
     const result = await sendEmail({
       to: klubb.epost,
-      subject: `${sesongNavn} — bekreft dine treningstider`,
+      subject: `${sesongNavn} — gjennomgå og bekreft treningstidene dine`,
       html: emailLayout({
-        title: 'Bekreft treningstidene dine',
+        title: 'Gjennomgå treningstidene dine',
         body: `
           <p>Hei ${klubb.navn},</p>
-          <p>Det er tid for å bekrefte treningstidene dine for <strong>${sesongNavn}</strong>${fristFormatert ? `. Fristen er <strong>${fristFormatert}</strong>` : ''}.</p>
-          <p style="margin:20px 0"><a href="${url}" style="background:#1a1a1a;color:#fff;padding:12px 22px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600">Gå til mine tider</a></p>
-          <p style="font-size:12px;color:#666">Lenken er personlig og gyldig i 7 dager. Ikke del den med andre.</p>
-          <p style="font-size:12px;color:#666">Hvis knappen ikke fungerer, kopier denne lenken i nettleseren:<br/><span style="word-break:break-all">${url}</span></p>
+
+          <p>Oslo idrettssekretariat har nå lagt ut forslag til treningstider for <strong>${sesongNavn}</strong>. Vi ber alle klubber gå gjennom de foreslåtte tidene og bekrefte, melde endringer eller si opp tider de ikke lenger har behov for.</p>
+
+          ${fristFormatert ? `
+          <div style="background:#fef3c7;border-left:4px solid #d97706;padding:12px 16px;margin:20px 0;border-radius:0 6px 6px 0">
+            <p style="margin:0;font-weight:600;color:#92400e">Frist: ${fristFormatert}</p>
+            <p style="margin:4px 0 0 0;font-size:13px;color:#92400e">Tider som ikke bekreftes innen fristen regnes som godkjent uendret.</p>
+          </div>` : ''}
+
+          <p style="font-weight:600;margin-bottom:6px">Dette gjør du i portalen:</p>
+          <ol style="padding-left:20px;margin:0 0 20px 0;line-height:1.8">
+            <li>Gå gjennom de tildelte tidene — bekreft, foreslå endringer eller si opp tider dere ikke trenger</li>
+            <li>Søk om ekstra tid hvis dere har behov utover det som er tildelt</li>
+            <li>Klikk «Bekreft og lagre» når dere er ferdige</li>
+          </ol>
+
+          <p style="margin:24px 0">
+            <a href="${url}" style="background:#1a1a1a;color:#fff;padding:13px 26px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600;font-size:15px">Gå til mine treningstider</a>
+          </p>
+
+          <p style="font-size:12px;color:#666;margin-bottom:4px">Lenken er personlig og gyldig i 7 dager. Ikke del den med andre.</p>
+          <p style="font-size:12px;color:#666">Hvis knappen ikke fungerer, kopier denne lenken inn i nettleseren:<br/>
+          <span style="word-break:break-all;color:#444">${url}</span></p>
+
+          <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0" />
+          <p style="font-size:12px;color:#666">Har du spørsmål om tildelingen, ta kontakt med Oslo idrettssekretariat ved å svare på denne e-posten.</p>
         `,
       }),
     })
