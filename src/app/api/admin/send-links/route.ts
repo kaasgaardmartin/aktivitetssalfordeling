@@ -95,12 +95,19 @@ export async function POST(request: NextRequest) {
             <a href="${url}" style="background:#1a1a1a;color:#fff;padding:13px 26px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600;font-size:15px">Gå til mine treningstider</a>
           </p>
 
-          <p style="font-size:12px;color:#666;margin-bottom:4px">Denne lenken er personlig, gyldig i 7 dager, og gjelder kun for ${klubb.navn}.</p>
+          <p style="font-size:12px;color:#666;margin-bottom:4px">Denne lenken er gyldig i 7 dager og gjelder kun for ${klubb.navn}.</p>
           <p style="font-size:12px;color:#666">Hvis knappen ikke fungerer, kopier denne lenken inn i nettleseren:<br/>
           <span style="word-break:break-all;color:#444">${url}</span></p>
 
           <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0" />
-          <p style="font-size:12px;color:#666">Har du spørsmål om tildelingen, ta kontakt med oss ved å svare på denne e-posten.</p>
+          <p style="font-size:13px;color:#444">Vi prøver i år et nytt digitalt system for fordeling av treningstider, og håper det gjør prosessen enklere for dere. Ta gjerne kontakt hvis noe er uklart eller ikke fungerer som det skal — vi er tilgjengelige på <a href="mailto:martin@kaasgaard.no" style="color:#1a1a1a">martin@kaasgaard.no</a>.</p>
+
+          <p style="margin-top:20px;font-size:13px;color:#444">
+            Beste hilsen<br/><br/>
+            <strong>Kampidrettene</strong><br/>
+            Norges Bokseforbund · Norges Bryteforbund · Norges Judoforbund<br/>
+            Norges Kampsportforbund · Norges Kickboksingforbund · Norges Fekteforbund
+          </p>
         `,
       }),
     })
