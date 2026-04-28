@@ -1,18 +1,12 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import type { Hall, Klubb, Sesong, Slot, Soknad, Endring, VentelisteItem } from './types'
+import type { Hall, Klubb, Sesong, Slot } from './types'
 import { UKEDAG_ORDER, UKEDAG_SHORT, UNDERLAG_OPTIONS, TIME_ROWS, idrettColor, formatTime, generate30minSlots } from './types'
 import dynamic from 'next/dynamic'
-import SoknaderTab from './SoknaderTab'
-import EndringerTab from './EndringerTab'
-import VentelisteTab from './VentelisteTab'
 import KlubberTab from './KlubberTab'
-import AuditTab from './AuditTab'
 import KapasitetTab from './KapasitetTab'
 import StatistikkTab from './StatistikkTab'
-import RegistreringerTab from './RegistreringerTab'
-import EmailTestModal from './EmailTestModal'
 import { exportHallerExcel } from './exportExcel'
 
 // Leaflet depends on window/document, so load client-side only
@@ -23,30 +17,22 @@ interface DashboardProps {
   sesonger: Sesong[]
   aktivSesong: Sesong | null
   slots: Slot[]
-  soknader: Soknad[]
-  venteliste: VentelisteItem[]
   klubber: Klubb[]
-  endringer: Endring[]
 }
 
-export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: initialSlots, soknader: initialSoknader, venteliste, klubber, endringer: initialEndringer }: DashboardProps) {
-  const [activeTab, setActiveTab] = useState<'haller' | 'kapasitet' | 'statistikk' | 'soknader' | 'endringer' | 'venteliste' | 'klubber' | 'registreringer' | 'kart' | 'logg'>('haller')
+export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: initialSlots, klubber }: DashboardProps) {
+  const [activeTab, setActiveTab] = useState<'haller' | 'kapasitet' | 'statistikk' | 'klubber' | 'kart'>('haller')
   const [selectedHalId, setSelectedHalId] = useState<string | null>(haller[0]?.id ?? null)
-  const [soknader, setSoknader] = useState(initialSoknader)
   const [slots, setSlots] = useState(initialSlots)
   const [slotModal, setSlotModal] = useState<Slot | null>(null)
   const [slotModalKlubbId, setSlotModalKlubbId] = useState('')
   const [slotModalIdrett, setSlotModalIdrett] = useState('')
   const [slotModalSaving, setSlotModalSaving] = useState(false)
-  const [sending, setSending] = useState(false)
-  const [sendResult, setSendResult] = useState<string | null>(null)
-  const [showSendLinker, setShowSendLinker] = useState(false)
   const [showNySesong, setShowNySesong] = useState(false)
   const [nySesongForm, setNySesongForm] = useState({ navn: '', frist: '', kopier_fra_sesong_id: '' })
   const [nySesongLaster, setNySesongLaster] = useState(false)
   const [nySesongFeil, setNySesongFeil] = useState('')
   const [showNyHall, setShowNyHall] = useState(false)
-  const [showEmailTest, setShowEmailTest] = useState(false)
   const [nyHallForm, setNyHallForm] = useState({ navn: '', underlag: '', merknader: '', stengedager: '', adresse: '' })
   const [nyHallLaster, setNyHallLaster] = useState(false)
   const [nyHallFeil, setNyHallFeil] = useState('')
@@ -54,7 +40,6 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
   const [nySlotForm, setNySlotForm] = useState({ ukedag: 'mandag', fra_kl: '16:00', til_kl: '22:30', klubb_id: '', idrett: '', utilgjengelig: false })
   const [nySlotLaster, setNySlotLaster] = useState(false)
   const [nySlotFeil, setNySlotFeil] = useState('')
-  const [endringer, setEndringer] = useState(initialEndringer)
   const [hallerState, setHallerState] = useState(haller)
   const [showEditHall, setShowEditHall] = useState(false)
   const [editHallForm, setEditHallForm] = useState({ id: '', navn: '', underlag: '', merknader: '', adresse: '', stengedager: '' })
@@ -89,41 +74,6 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
 
   // ── Handlers ──
 
-  async function handleSoknad(id: string, status: 'godkjent' | 'avslatt') {
-    const res = await fetch('/api/soknader', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, status }),
-    })
-    if (res.ok) {
-      setSoknader(prev => prev.map(s => {
-        if (s.id === id) return { ...s, status }
-        const approved = prev.find(x => x.id === id)
-        if (status === 'godkjent' && approved && s.slot_id === approved.slot_id && s.id !== id) return { ...s, status: 'avslatt' }
-        return s
-      }).filter(s => s.status === 'venter'))
-    } else {
-      const detail = await res.json().catch(() => ({}))
-      alert(`Kunne ikke ${status === 'godkjent' ? 'godkjenne' : 'avslå'} søknad: ${detail.error ?? res.statusText}`)
-    }
-  }
-
-  async function handleEndring(ids: string[], action: 'godkjenn' | 'avslaa') {
-    const res = await fetch('/api/svar', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids, action }),
-    })
-    if (res.ok) {
-      const idSet = new Set(ids)
-      setEndringer(prev => prev.filter(e => !idSet.has(e.id)))
-      if (action === 'godkjenn') window.location.reload()
-    } else {
-      const detail = await res.json().catch(() => ({}))
-      alert(`Kunne ikke ${action === 'godkjenn' ? 'godkjenne' : 'avslå'}: ${detail.error ?? res.statusText}`)
-    }
-  }
-
   async function toggleLaast() {
     if (!aktivSesong) return
     const ny = !aktivSesong.laast
@@ -144,24 +94,6 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
     }
   }
 
-  async function sendLinks(klubbIds: string[]) {
-    if (!aktivSesong) return
-    setSending(true)
-    const res = await fetch('/api/admin/send-links', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sesong_id: aktivSesong.id, klubb_ids: klubbIds }),
-    })
-    if (!res.ok) {
-      const detail = await res.json().catch(() => ({}))
-      setSendResult(`Feil: ${detail.error ?? res.statusText}`)
-      setSending(false)
-      return
-    }
-    const data = await res.json()
-    setSendResult(`Sendt til ${data.sent} klubber`)
-    setSending(false)
-  }
 
 
   async function opprettSesong(e: React.FormEvent) {
@@ -605,9 +537,6 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
     }
   }
 
-  const ubesvarteSok = soknader.filter(s => s.status === 'venter').length
-  const ubehandledeEndringer = endringer.length
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Topbar */}
@@ -636,16 +565,6 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
               {aktivSesong.laast ? '🔓 Åpne' : '🔒 Lås'}
             </button>
           )}
-          {aktivSesong && (
-            <button onClick={() => setShowSendLinker(true)} disabled={sending} className="btn text-xs">
-              {sending ? 'Sender...' : 'Send lenker'}
-            </button>
-          )}
-
-          <button onClick={() => setShowEmailTest(true)} className="btn text-xs hidden sm:inline-flex" title="Send testmail for å verifisere e-postoppsettet">
-            ✉️ Testmail
-          </button>
-          {sendResult && <span className="text-xs text-green-600">{sendResult}</span>}
         </div>
       </div>
 
@@ -655,13 +574,8 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
           { id: 'haller', label: 'Halloversikt' },
           { id: 'kapasitet', label: 'Kapasitet' },
           { id: 'statistikk', label: 'Statistikk' },
-          { id: 'soknader', label: `Søknader${ubesvarteSok ? ` (${ubesvarteSok})` : ''}` },
-          { id: 'endringer', label: `Endringer${ubehandledeEndringer ? ` (${ubehandledeEndringer})` : ''}` },
-          { id: 'venteliste', label: 'Venteliste' },
           { id: 'klubber', label: 'Klubber' },
-          { id: 'registreringer', label: 'Nye søknader' },
           { id: 'kart', label: 'Kart' },
-          { id: 'logg', label: 'Logg' },
         ] as const).map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
             className={`whitespace-nowrap border-b-2 px-3 md:px-4 py-3 text-sm font-medium transition-colors ${activeTab === tab.id ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-600 hover:text-gray-700'}`}>
@@ -877,13 +791,8 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
       {/* ── TAB COMPONENTS ── */}
       {activeTab === 'kapasitet' && <KapasitetTab haller={hallerState} slots={slots} />}
       {activeTab === 'statistikk' && <StatistikkTab klubber={klubber} slots={slots} />}
-      {activeTab === 'soknader' && <SoknaderTab soknader={soknader.filter(s => s.status === 'venter')} onHandleSoknad={handleSoknad} />}
-      {activeTab === 'endringer' && <EndringerTab endringer={endringer} onHandleEndring={handleEndring} />}
-      {activeTab === 'venteliste' && <VentelisteTab venteliste={venteliste} />}
       {activeTab === 'klubber' && <KlubberTab klubber={klubber} slots={slots} aktivSesong={aktivSesong} />}
-      {activeTab === 'registreringer' && <RegistreringerTab />}
       {activeTab === 'kart' && <HallerKart haller={hallerState} />}
-      {activeTab === 'logg' && <AuditTab />}
 
       {/* ── SLOT MODAL (Rediger) ── */}
       {slotModal && (
@@ -1030,21 +939,6 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
             </div>
           </form>
         </div>
-      )}
-
-      {/* ── E-POST TEST MODAL ── */}
-      {showEmailTest && <EmailTestModal onClose={() => setShowEmailTest(false)} />}
-      {showSendLinker && aktivSesong && (
-        <SendLinkerModal
-          klubber={klubber.filter(k => k.aktiv)}
-          sesongNavn={aktivSesong.navn}
-          sending={sending}
-          onClose={() => setShowSendLinker(false)}
-          onSend={async (valgte) => {
-            await sendLinks(valgte)
-            setShowSendLinker(false)
-          }}
-        />
       )}
 
       {/* ── NY SESONG MODAL ── */}
@@ -1224,124 +1118,6 @@ export default function AdminDashboard({ haller, sesonger, aktivSesong, slots: i
           </form>
         </div>
       )}
-    </div>
-  )
-}
-
-// ── Send lenker modal ──
-function SendLinkerModal({
-  klubber,
-  sesongNavn,
-  sending,
-  onClose,
-  onSend,
-}: {
-  klubber: Klubb[]
-  sesongNavn: string
-  sending: boolean
-  onClose: () => void
-  onSend: (klubbIds: string[]) => Promise<void>
-}) {
-  const [valgte, setValgte] = useState<Set<string>>(new Set(klubber.map(k => k.id)))
-  const [bekreftet, setBekreftet] = useState(false)
-
-  function toggleAll() {
-    if (valgte.size === klubber.length) setValgte(new Set())
-    else setValgte(new Set(klubber.map(k => k.id)))
-  }
-
-  function toggle(id: string) {
-    setValgte(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-    setBekreftet(false)
-  }
-
-  const valgteKlubber = klubber.filter(k => valgte.has(k.id))
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl bg-white flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
-          <div>
-            <p className="font-semibold text-gray-900">Send innloggingslenker</p>
-            <p className="text-xs text-gray-600 mt-0.5">{sesongNavn}</p>
-          </div>
-          <button onClick={onClose} className="text-gray-600 text-xl leading-none">&times;</button>
-        </div>
-
-        {!bekreftet ? (
-          <>
-            {/* Velg klubber */}
-            <div className="px-6 py-3 border-b border-gray-100 shrink-0 flex items-center justify-between">
-              <p className="text-xs text-gray-600"><strong>{valgte.size}</strong> av {klubber.length} klubber valgt</p>
-              <button onClick={toggleAll} className="text-xs text-blue-700 underline">
-                {valgte.size === klubber.length ? 'Fjern alle' : 'Velg alle'}
-              </button>
-            </div>
-            <div className="overflow-y-auto flex-1 divide-y divide-gray-100">
-              {klubber.map(k => (
-                <label key={k.id} className="flex items-center gap-3 px-6 py-2.5 hover:bg-gray-50 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={valgte.has(k.id)}
-                    onChange={() => toggle(k.id)}
-                    className="h-4 w-4 rounded border-gray-300 text-gray-900"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-gray-900 truncate">{k.navn}</p>
-                    <p className="text-xs text-gray-500 truncate">{k.epost ?? '—'}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
-            <div className="px-6 py-4 border-t border-gray-200 shrink-0">
-              <button
-                onClick={() => setBekreftet(true)}
-                disabled={valgte.size === 0}
-                className="btn-primary w-full"
-              >
-                Gå videre ({valgte.size} klubber)
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            {/* Bekreftelsesvisning */}
-            <div className="px-6 py-4 shrink-0">
-              <div className="rounded-lg bg-amber-50 ring-1 ring-amber-300 px-4 py-3 text-sm text-amber-900">
-                <p className="font-semibold">Send til {valgteKlubber.length} klubber?</p>
-                <p className="text-xs mt-1">Hver klubb får en personlig innloggingslenke på e-post. Lenken er gyldig i 7 dager.</p>
-              </div>
-            </div>
-            <div className="overflow-y-auto flex-1 px-6 space-y-1">
-              {valgteKlubber.map(k => (
-                <div key={k.id} className="flex items-center gap-2 py-1">
-                  <span className="text-green-600 text-xs">✓</span>
-                  <div className="min-w-0">
-                    <span className="text-sm text-gray-900">{k.navn}</span>
-                    <span className="text-xs text-gray-500 ml-2">{k.epost}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="px-6 py-4 border-t border-gray-200 shrink-0 flex gap-2">
-              <button onClick={() => setBekreftet(false)} className="btn flex-1">Tilbake</button>
-              <button
-                onClick={() => onSend(Array.from(valgte))}
-                disabled={sending}
-                className="btn-primary flex-1"
-              >
-                {sending ? 'Sender...' : `✓ Send til ${valgteKlubber.length} klubber`}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
     </div>
   )
 }
