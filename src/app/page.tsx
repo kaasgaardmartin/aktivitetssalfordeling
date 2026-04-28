@@ -13,7 +13,7 @@ export default async function Page() {
     .eq('status', 'aktiv')
     .maybeSingle()
 
-  const sesong = aktivSesong ?? null
+  const sesong = (aktivSesong ?? null) as { id: string; navn: string; frist: string; status: string; laast: boolean } | null
 
   const hallerRes = await supabase
     .from('haller')
