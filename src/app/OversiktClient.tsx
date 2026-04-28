@@ -74,11 +74,6 @@ export default function OversiktClient({ haller, slots, sesong }: { haller: Hall
               ) : 'Ingen aktiv sesong'}
             </p>
           </div>
-          <div className="flex items-center gap-2 text-xs text-gray-600">
-            <a href="/" className="underline">← Forside</a>
-            <span>·</span>
-            <a href="/registrer" className="underline">Søk om tilgang som klubb</a>
-          </div>
         </div>
       </header>
 
